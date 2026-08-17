@@ -33,7 +33,7 @@
 | H-05 | Tres fallos del sistema sin tipo de error | Crítico | **Registrado, sin resolver** |
 | H-06 | Paridad byte a byte contra endurecimiento obligatorio | Crítico | **Registrado, sin resolver** |
 | H-07 | Sin timeout ni terminación real del hijo | Advertencia | **Resuelto** |
-| H-08 | El health check contradice "token obligatorio" | Advertencia | **Abierto** |
+| H-08 | El health check contradice "token obligatorio" | Advertencia | **Resuelto — ADR 0016** |
 | H-09 | Sin decisión sobre la ingesta de archivos | Advertencia | **Abierto** |
 | H-10 | Observabilidad sin hilo conductor con el portal | Advertencia | **Parcial** |
 | H-11 | `salida_esperada` se lee y no se usa | Advertencia | **Abierto** |
@@ -314,6 +314,15 @@ declara— o el probe siempre da 401 y el despliegue nunca queda sano.
 Tampoco está decidido si el health consulta SQL Server. Si lo hace, un hipo de base reinicia
 contenedores; si no lo hace, reporta sano mientras el 100% de las peticiones falla. Cero criterios de
 aceptación para el único endpoint que decide si el servicio se considera vivo.
+
+**Cómo se resolvió:** ADR 0016 fija `GET /salud` como público y sin consulta a SQL Server, único
+endpoint sin autenticación del servicio. La exención se expresa de forma estructural — el token se
+adjunta como dependencia solo a los routers de procesadores (item #2), nunca como middleware global
+con una lista de excepciones — y `app/salud.py` importa exclusivamente `fastapi`, así que la
+independencia del resto del servicio es una propiedad del grafo de imports, no una promesa. El ADR
+deja registrado, sin resolverlo, que "sano" no implica "completamente funcional": un 200 no prueba
+validez del token más allá del arranque, alcance de SQL Server, coincidencia registry↔catálogo, ni que
+un procesador pueda ejecutar.
 
 ### H-09 · Sin decisión sobre la ingesta de archivos — Advertencia
 
