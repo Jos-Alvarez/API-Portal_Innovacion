@@ -1,0 +1,61 @@
+# openspec/config.yaml
+schema: spec-driven
+
+context: |
+  Project: api-portal — "Servicio de Procesadores" (FastAPI), item #9 of the
+  Portal de Innovación master backlog. Brownfield within an existing
+  ecosystem: subordinate to inherited ADRs at L:\App_Portal\adrs\ (0001-0010).
+  New ADRs live locally at .\adrs\, numbered from 0011 (0011-0015 exist).
+  Stack: Python + FastAPI (per TECH-DESIGN.md); no packaging/tooling files
+  committed yet (no pyproject.toml/requirements.txt/CI as of this init).
+  Architecture: app/core (pipeline-agnostic) + app/procesadores/{key}
+  (self-contained per-processor packages) + registry.py + main.py.
+  Authoritative docs: PRD.md, TECH-DESIGN.md, BACKLOG.md (repo root).
+
+strict_tdd: true
+
+testing:
+  test_command: "not yet configured"
+  build_command: "not yet configured"
+  coverage_threshold: 0
+  notes: >
+    No test runner, linter, type checker, or formatter is declared anywhere
+    in the repository yet (no pyproject.toml, requirements*.txt, pytest.ini,
+    tox.ini, Makefile, or CI config found). TECH-DESIGN.md and BACKLOG.md
+    describe the target architecture but do not pin concrete tooling.
+    Recommended (not yet installed/confirmed): pytest + pytest-cov +
+    httpx (FastAPI TestClient) for unit/integration, ruff for lint/format,
+    mypy for type checking. The first implementation change MUST scaffold
+    this tooling before any Strict TDD RED-GREEN-REFACTOR cycle can run.
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Respect inherited portal ADRs (L:\App_Portal\adrs\); this repo's ADRs
+      are subordinate and numbered from 0011
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - core/ must never import from procesadores/ (architecture invariant,
+      see BACKLOG item #13)
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+    - First task of the first change MUST scaffold pytest/tooling since none
+      exists yet
+  apply:
+    guidelines:
+      - Follow existing code patterns once established
+      - Every route per processor must delegate to the common pipeline, never
+        reimplement it
+    tdd: true           # Strict TDD Mode is enabled for this session
+    test_command: "not yet configured"
+  verify:
+    test_command: "not yet configured"
+    build_command: "not yet configured"
+    coverage_threshold: 0
+  archive:
+    - Warn before merging destructive deltas
