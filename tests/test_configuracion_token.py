@@ -26,7 +26,11 @@ def test_token_vacio_falla(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_token_valido_se_acepta(token_sentinela: str) -> None:
     configuracion = obtener_configuracion()
-    assert configuracion.token_servicio.get_secret_value() == token_sentinela
+    # Comparación de SecretStr contra SecretStr (V13 del diseño de ítem #2):
+    # equivalente a comparar el valor desenvuelto, pero sin una llamada a
+    # get_secret_value() a nivel de código fuente. Deja app/core/seguridad.py
+    # como el único sitio del repositorio con esa llamada.
+    assert configuracion.token_servicio == SecretStr(token_sentinela)
 
 
 def test_configuracion_es_frozen(token_sentinela: str) -> None:
