@@ -77,7 +77,7 @@ The audit-hook test asserts an **ordering** relation, not emptiness, so it stays
 def obtener_configuracion() -> Configuracion: ...
 ```
 
-Why `functools.lru_cache` and not a module-level global: it makes laziness **observable**. `obtener_configuracion.cache_info().currentsize == 0` after a fresh `import app.main` is a hard assertion that nothing built it at import time, and `cache_clear()` gives tests a clean reset without module reloading. Item #5's engine and item #11's startup check MUST use the same shape (`obtener_motor()`, memoised, called from lifespan).
+Why `functools.lru_cache` and not a module-level global: it makes laziness **observable**. `obtener_configuracion.cache_info().currsize == 0` after a fresh `import app.main` is a hard assertion that nothing built it at import time, and `cache_clear()` gives tests a clean reset without module reloading. Item #5's engine and item #11's startup check MUST use the same shape (`obtener_motor()`, memoised, called from lifespan).
 
 **Enforcement seam for item #13** (design only, not built here): an AST check over `app/**/*.py` that fails CI when a `Call` node whose callee names a memoised factory appears at module scope, alongside the existing "`core/` never imports `procesadores/`" check. The audit-hook test in D2 is the runtime counterpart and is already CI-runnable today.
 
@@ -86,6 +86,11 @@ Why `functools.lru_cache` and not a module-level global: it makes laziness **obs
 ```python
 class Configuracion(BaseSettings):
     model_config = SettingsConfigDict(extra="forbid", frozen=True)  # env only; no .env file → platform-neutral
+    # NOTE: extra="forbid" rejects unknown keyword arguments passed directly to
+    # Configuracion(...). It does NOT reject unrelated environment variables —
+    # pydantic-settings only collects the environment keys it knows about, so a
+    # stray FOO=bar in the environment is silently ignored. Do not rely on this
+    # setting as an environment-hygiene guard.
     token_servicio: Annotated[SecretStr, Field(min_length=1)]       # env: TOKEN_SERVICIO, sin default
 ```
 
@@ -200,7 +205,7 @@ Ordering rule for later items: **any new startup work goes after the configurati
 | `tests/test_arranque_spawn.py` | Create | The three D2 tests |
 | `tests/test_configuracion_token.py` | Create | Fail-closed + sentinel-absence tests |
 | `tests/test_salud.py` | Create | 200 payload, no-token, no-`app.`-imports AST assertion |
-| `tests/test_convenciones_pereza.py` | Create | `cache_info().currentsize == 0` after fresh import (D3) |
+| `tests/test_convenciones_pereza.py` | Create | `cache_info().currsize == 0` after fresh import (D3) |
 | `adrs/0016-health-check-publico-sin-base-de-datos.md` | Create | D7 |
 | `REVISION-ADVERSARIAL.md` | Modify | H-08 status row + "Cómo se resolvió" paragraph |
 | `openspec/config.yaml` | Modify | Fill `test_command` / `build_command` now that tooling exists |
@@ -236,7 +241,7 @@ app = crear_app()
 |---|---|---|
 | Unit | `fijar_metodo_arranque()` idempotence, return value, post-condition failure | Direct call; monkeypatch `multiprocessing` for the post-condition branch |
 | Unit | `Configuracion` rejects unset and empty token; accepts a valid one; is `frozen`; `extra="forbid"` | `monkeypatch.setenv` / `delenv` + `pytest.raises` |
-| Unit | Laziness: `obtener_configuracion.cache_info().currentsize == 0` after fresh import | Fresh-interpreter subprocess |
+| Unit | Laziness: `obtener_configuracion.cache_info().currsize == 0` after fresh import | Fresh-interpreter subprocess |
 | Integration | Ordering invariant via `sys.addaudithook` (D2) | Fresh-interpreter subprocess |
 | Integration | Token sentinel never present in combined startup output | Fresh-interpreter subprocess, substring assertion |
 | Integration | `with TestClient(crear_app())` raises when the token is unset; succeeds when set | Starlette `TestClient` as a context manager (runs lifespan) |
@@ -270,3 +275,19 @@ No migration. New files only; no existing runtime, schema, or in-flight state. R
 - [ ] Deployment target (Linux container vs. native Windows service, prerequisite #0) — out of this change's control; every decision above is deliberately platform-neutral.
 - [ ] `EJECUCIONES_MAX` / `TIMEOUT_EJECUCION` are **not** introduced here — they belong to item #8. Only `TOKEN_SERVICIO` exists in `Configuracion` after this change.
 - [ ] Exact Uvicorn exit code on a failed lifespan startup is asserted as *non-zero*, not as a specific number, to avoid coupling the suite to a Uvicorn implementation detail.
+
+## Post-implementation corrections
+
+Two claims in this document were disproven empirically during implementation. They are corrected in
+place above; this section records what they said and why they changed, so the correction is auditable
+rather than silent.
+
+| Claim as originally written | Reality | Evidence |
+|---|---|---|
+| `cache_info().currentsize == 0` proves nothing was built at import time | The attribute is **`currsize`**, not `currentsize`. `functools`'s `CacheInfo` namedtuple has exactly the fields `('hits', 'misses', 'maxsize', 'currsize')` | `lru_cache(maxsize=1)(lambda: 1).cache_info()._fields` on Python 3.12.0 |
+| `extra="forbid"` was presented as part of the configuration's defensive shape, implying it guards the environment | `extra="forbid"` rejects unknown **keyword arguments** passed directly to `Configuracion(...)`. It does **not** reject unrelated environment variables: pydantic-settings only collects the environment keys it knows about, so a stray variable is silently ignored | Constructing `Configuracion()` with `TOKEN_SERVICIO=abc BASURA_INVENTADA=x` in the environment succeeds and returns a valid settings object |
+
+The implementation and its tests were written against the verified reality, not against these two
+sentences, so no code changed as a result of this correction. The lesson worth carrying to items #4,
+#5 and #11: a defensive setting named in a design document is not a defense until a test exercises
+it. `extra="forbid"` looked like environment hygiene and is not.
