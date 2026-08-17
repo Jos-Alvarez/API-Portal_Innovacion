@@ -9,11 +9,33 @@ break on a module that has not been created yet.
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Iterator
 
 import pytest
 
 TOKEN_SENTINELA = "sentinela-token-de-pruebas-3f9c2a"
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Abortar si la suite corre fuera de un entorno virtual.
+
+    En esta máquina el intérprete del sistema tiene instalado su propio
+    stack de FastAPI, varias versiones por detrás del que el proyecto fija
+    en ``uv.lock``. Correr contra él no falla: contesta, y contesta mal.
+    Una suite verde contra la librería equivocada es peor que una roja.
+
+    No se compara contra una ruta fija de ``.venv`` a propósito, para que un
+    runner de CI con otra ubicación de entorno siga siendo válido. Lo único
+    que se exige es no estar en el intérprete base.
+    """
+    if sys.prefix == sys.base_prefix:
+        raise pytest.UsageError(
+            "La suite se está ejecutando con el intérprete del sistema "
+            f"({sys.executable}), no con el entorno del proyecto. Las "
+            "versiones de FastAPI y Starlette no coinciden con uv.lock, así "
+            "que los resultados no son válidos. Usá 'uv run pytest'."
+        )
 
 
 @pytest.fixture
