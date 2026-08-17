@@ -1,0 +1,61 @@
+[project]
+name = "api-portal"
+version = "0.1.0"
+description = "Servicio de Procesadores — Portal de Innovacion"
+# Piso de Python: soporte vigente y tipado moderno (decision independiente,
+# no es una consecuencia del mecanismo de spawn de ADR 0012).
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "pydantic-settings",
+]
+
+[dependency-groups]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "httpx",
+    "ruff",
+    "mypy",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+# Contado_Carga.py es un script legacy anterior a este cambio, fuera de
+# alcance del paquete `app`; no se relinta como parte del esqueleto.
+# openspec/ contiene artefactos SDD (incl. bloques de codigo en Markdown)
+# que no son parte del codigo fuente y no deben reformatearse.
+extend-exclude = ["Contado_Carga.py", "openspec"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "T20"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# NOTA (gotcha de cobertura): el codigo que corre dentro de los tests de
+# subproceso de interprete fresco (arranque, sentinel de configuracion, E2E)
+# NO es medido por pytest-cov salvo que se conecte COVERAGE_PROCESS_START.
+# Hoy es inofensivo (coverage_threshold: 0), pero subestimara la cobertura
+# real de arranque.py en cuanto se agregue un umbral de cobertura.
+addopts = "--strict-markers --cov=app --cov-report=term-missing"

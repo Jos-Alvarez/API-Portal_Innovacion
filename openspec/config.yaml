@@ -15,18 +15,14 @@ context: |
 strict_tdd: true
 
 testing:
-  test_command: "not yet configured"
-  build_command: "not yet configured"
+  test_command: "uv run pytest"
+  build_command: "uv run ruff check . && uv run ruff format --check . && uv run mypy app tests"
   coverage_threshold: 0
   notes: >
-    No test runner, linter, type checker, or formatter is declared anywhere
-    in the repository yet (no pyproject.toml, requirements*.txt, pytest.ini,
-    tox.ini, Makefile, or CI config found). TECH-DESIGN.md and BACKLOG.md
-    describe the target architecture but do not pin concrete tooling.
-    Recommended (not yet installed/confirmed): pytest + pytest-cov +
-    httpx (FastAPI TestClient) for unit/integration, ruff for lint/format,
-    mypy for type checking. The first implementation change MUST scaffold
-    this tooling before any Strict TDD RED-GREEN-REFACTOR cycle can run.
+    Tooling scaffolded by esqueleto-servicio-arranque-seguro (BACKLOG item
+    #1): uv-managed pyproject.toml + uv.lock, pytest + pytest-cov + httpx
+    (FastAPI TestClient) for unit/integration, ruff for lint/format, mypy
+    for type checking.
 
 rules:
   proposal:
@@ -52,10 +48,10 @@ rules:
       - Every route per processor must delegate to the common pipeline, never
         reimplement it
     tdd: true           # Strict TDD Mode is enabled for this session
-    test_command: "not yet configured"
+    test_command: "uv run pytest"
   verify:
-    test_command: "not yet configured"
-    build_command: "not yet configured"
+    test_command: "uv run pytest"
+    build_command: "uv run ruff check . && uv run ruff format --check . && uv run mypy app tests"
     coverage_threshold: 0
   archive:
     - Warn before merging destructive deltas
