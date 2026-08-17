@@ -12,7 +12,21 @@ context: |
   (self-contained per-processor packages) + registry.py + main.py.
   Authoritative docs: PRD.md, TECH-DESIGN.md, BACKLOG.md (repo root).
 
-strict_tdd: true
+# Fast Path — decisión del usuario, 2026-08-17, a partir del ítem #3.
+# Strict TDD queda cancelado para los ítems restantes del backlog por costo
+# de tiempo y de tokens. Los ítems #1 y #2 se construyeron bajo Strict TDD y
+# conservan sus tests; nada de lo ya entregado se quita.
+#
+# Qué significa Fast Path para las fases siguientes:
+#   - Implementación directa y simple; el test no precede al código.
+#   - No se escriben tests estructurales (AST), de caos, ni auditorías
+#     extremas.
+#   - Se conservan los tests de comportamiento que prueben que el ítem hace
+#     lo que dice hacer.
+#   - ruff y mypy siguen corriendo: son baratos y no dependen de escribir
+#     tests.
+strict_tdd: false
+fast_path: true
 
 testing:
   test_command: "uv run pytest"
@@ -47,7 +61,7 @@ rules:
       - Follow existing code patterns once established
       - Every route per processor must delegate to the common pipeline, never
         reimplement it
-    tdd: true           # Strict TDD Mode is enabled for this session
+    tdd: false          # Fast Path — ver la nota junto a strict_tdd arriba
     test_command: "uv run pytest"
   verify:
     test_command: "uv run pytest"
