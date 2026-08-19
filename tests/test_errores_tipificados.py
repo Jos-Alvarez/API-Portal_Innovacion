@@ -25,7 +25,9 @@ from app.core.errores import (
     ErrorTipificado,
     TipoError,
     registrar_manejador_errores,
+    responder_error_tipificado,
 )
+from app.main import crear_app
 
 _CASOS: Final[Mapping[str, ErrorTipificado]] = {
     "formato": ErrorFormato(
@@ -150,6 +152,38 @@ class TestCasosDeError:
         assert fila.status_code == desync.status_code == 500
         assert fila.json()["tipo"] == desync.json()["tipo"] == "clave_inexistente"
         assert fila.json()["contexto"]["causa"] != desync.json()["contexto"]["causa"]
+
+
+def test_manejador_registrado_en_la_app_embarcada() -> None:
+    app = crear_app()
+    assert app.exception_handlers[ErrorTipificado] is responder_error_tipificado
+
+
+def test_manejador_activo_en_la_app_embarcada(
+    token_sentinela: str, limpiar_cache_configuracion: None
+) -> None:
+    # Comportamiento, no solo registro: una ruta que lanza un error tipificado
+    # en la app de producción debe recibir el sobre {"tipo", "contexto"}
+    # documentado por ADR 0014, no un 500 sin tipificar.
+    app = crear_app()
+    error = ErrorFormato(archivo="enero.csv", formato_recibido="csv", formatos_aceptados=["xlsx"])
+
+    @app.get("/prueba-error-tipificado")
+    def _lanzar() -> None:
+        raise error
+
+    with TestClient(app, raise_server_exceptions=False) as cliente:
+        respuesta = cliente.get("/prueba-error-tipificado")
+
+    assert respuesta.status_code == 422
+    assert respuesta.json() == {
+        "tipo": "formato",
+        "contexto": {
+            "archivo": "enero.csv",
+            "formato_recibido": "csv",
+            "formatos_aceptados": ["xlsx"],
+        },
+    }
 
 
 def test_vocabulario_cerrado() -> None:
