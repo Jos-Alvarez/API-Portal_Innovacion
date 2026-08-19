@@ -79,14 +79,17 @@ A test-only router MUST exercise all six error conditions and assert their docum
 - WHEN its registered routes are inspected
 - THEN none of the test-only error-triggering routes are present
 
-### Requirement: Shipped application route set is unchanged
-This change MUST NOT add any route to the shipped `crear_app()`. The route set MUST be identical
-before and after this change.
-
-#### Scenario: Shipped route set unchanged
-- GIVEN the shipped `crear_app()` before and after this change
-- WHEN their route sets are compared
-- THEN they are identical
+> **Requirement removed on 2026-08-18.** This slot held "Shipped application route set is
+> unchanged", worded as *"**This change** MUST NOT add any route…"* with a scenario comparing
+> `crear_app()` *"before and after **this change**"*. That wording was correct inside the originating
+> change's delta, where "this change" had a referent. Promoted into this permanent domain spec it
+> refers to nothing, and read as a standing invariant it became **false** when
+> `borde-de-autenticacion-y-errores-http` deliberately added the `/interno` authentication mount.
+>
+> It was an assertion about one change's diff, not a property of this domain. The living invariant is
+> `service-token-auth`'s "Shipped application route set changes deliberately, for the authentication
+> boundary only", which names the current surface and is pinned by a test. Do not restore this
+> requirement here.
 
 ### Requirement: Local ADR 0018 documents the two status/contract decisions
 This change MUST add `adrs/0018-*.md`, MADR format matching `adrs/0011`-`0017`, neutral
@@ -100,3 +103,40 @@ explicitly that this closes TECH-DESIGN's distinguishability requirement, not H-
 - WHEN `adrs/0018-*.md` is inspected
 - THEN it exists in MADR format and documents both decisions, their rejected alternatives, and the
   H-05 honesty boundary
+
+### Requirement: Request validation failures are answered outside ADR 0014's vocabulary
+A `RequestValidationError` raised during request parsing or validation MUST be answered by a handler
+registered inside `crear_app()` with **422 and an empty body**. It MUST NOT return FastAPI's default
+`{"detail": [...]}`, and the response MUST contain neither the value the client submitted nor the
+service token.
+
+It MUST NOT carry ADR 0014's `{"tipo", "contexto"}` envelope either.
+
+**Amended after the design phase.** An earlier draft of this requirement demanded the typed envelope.
+That is not satisfiable: ADR 0014's vocabulary is closed at five values — `formato`, `tamano`,
+`contenido`, `cantidad`, `clave_inexistente` — and every one of them describes a *content* failure a
+processor found in a file it could read. A `RequestValidationError` is a request whose shape never
+parsed; it never reached the content layer. `cantidad` comes closest and still does not fit, because
+its `contexto` carries `minimo`/`maximo` from the processor contract, which an exception handler at
+this layer does not have.
+
+The shipped `error-contract` spec states that no `tipo` other than the five MUST ever appear, so
+inventing a sixth is barred. An empty body follows ADR 0017's existing precedent, where the 401 was
+deliberately kept outside the enum and answered with no body at all: a status that says "this request
+is unusable" without claiming a vocabulary that does not describe it. ADRs outrank a spec draft, so
+the requirement is amended rather than the ADR bent.
+
+#### Scenario: Malformed body is rejected with an empty 422
+- GIVEN a route with a declared request body, protected by the service-token dependency
+- WHEN a request carrying a valid token is sent with a body that fails validation
+- THEN the response status is 422, its body is empty, and it contains neither `detail` nor `tipo`
+
+#### Scenario: The rejection leaks neither the submitted value nor the token
+- GIVEN the same request, carrying a distinctive sentinel value in the body
+- WHEN the full response, including its headers, is inspected
+- THEN neither the sentinel nor the service token appears anywhere in it
+
+#### Scenario: Handler is active in the shipped application
+- GIVEN the shipped `crear_app()`
+- WHEN it is constructed
+- THEN a handler for `RequestValidationError` has been registered before the app is returned

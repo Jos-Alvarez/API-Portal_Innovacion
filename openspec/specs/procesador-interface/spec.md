@@ -122,11 +122,14 @@ receives a pickled live instance is undecided and belongs to item #8.
 - WHEN read
 - THEN it states the child-process instantiation strategy is undecided, owned by item #8
 
-### Requirement: Shipped application route set is unchanged
-This change MUST NOT add, remove, or modify any route on the shipped `crear_app()`. Satisfied by
-item #2's existing `test_rutas_de_produccion_no_cambian`; no new test is required.
-
-#### Scenario: Shipped route set unchanged
-- GIVEN the shipped `crear_app()` before and after this change
-- WHEN `test_rutas_de_produccion_no_cambian` runs
-- THEN it passes
+> **Requirement removed on 2026-08-18.** This slot held "Shipped application route set is
+> unchanged", worded as *"**This change** MUST NOT add any route…"* with a scenario comparing
+> `crear_app()` *"before and after **this change**"*. That wording was correct inside the originating
+> change's delta, where "this change" had a referent. Promoted into this permanent domain spec it
+> refers to nothing, and read as a standing invariant it became **false** when
+> `borde-de-autenticacion-y-errores-http` deliberately added the `/interno` authentication mount.
+>
+> It was an assertion about one change's diff, not a property of this domain. The living invariant is
+> `service-token-auth`'s "Shipped application route set changes deliberately, for the authentication
+> boundary only", which names the current surface and is pinned by a test. Do not restore this
+> requirement here.
