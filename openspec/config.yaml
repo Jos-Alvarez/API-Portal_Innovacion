@@ -29,6 +29,19 @@ context: |
 #   - ruff y mypy en cada ciclo.
 strict_tdd: false
 
+# Presupuesto de revisión — subido de 400 a 600 el 2026-08-18, con datos.
+#
+# Los primeros cinco cambios entregaron 419, ~500, 419, 277 y ~460 líneas
+# contra pronósticos de fase de diseño que quedaron cortos entre un 30% y un
+# 50%, siempre por el archivo de tests. Un presupuesto que cada ítem viola es
+# ruido: deja de informar y solo agrega una excepción por ciclo.
+#
+# 600 deja pasar un ítem típico de este proyecto sin ceremonia y sigue
+# frenando uno genuinamente grande, que es lo único que un presupuesto tiene
+# que hacer. Revisar si la mediana entregada se mueve.
+review_budget_lines: 600
+
+
 testing:
   test_command: "uv run pytest"
   build_command: "uv run ruff check . && uv run ruff format --check . && uv run mypy app tests"
