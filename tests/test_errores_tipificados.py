@@ -8,6 +8,7 @@ embarcado ya está pinchado por `test_rutas_de_produccion_no_cambian` en
 
 from __future__ import annotations
 
+import pickle
 from collections.abc import Callable, Mapping
 from typing import Final
 
@@ -168,6 +169,35 @@ class TestCasosDeError:
         assert fila.status_code == desync.status_code == 500
         assert fila.json()["tipo"] == desync.json()["tipo"] == "clave_inexistente"
         assert fila.json()["contexto"]["causa"] != desync.json()["contexto"]["causa"]
+
+
+class TestPickleRoundTrip:
+    """`ErrorTipificado.__reduce__` (ítem #8, design.md §5, V6).
+
+    El `Pipe` entre el proceso padre y el hijo dedicado usa pickling; un
+    error tipificado levantado por el módulo debe cruzar esa frontera
+    intacto -- `tipo` y el `contexto` completo, sin invocar `__init__`.
+    """
+
+    @pytest.mark.parametrize("nombre", list(_CASOS))
+    def test_sobrevive_el_round_trip(self, nombre: str) -> None:
+        original = _CASOS[nombre]
+        reconstruido = pickle.loads(pickle.dumps(original))  # noqa: S301
+        assert type(reconstruido) is type(original)
+        assert reconstruido.tipo == original.tipo
+        assert reconstruido.contexto == original.contexto
+
+    def test_es_instancia_de_error_tipificado(self) -> None:
+        original = _CASOS["formato"]
+        reconstruido = pickle.loads(pickle.dumps(original))  # noqa: S301
+        assert isinstance(reconstruido, ErrorTipificado)
+
+    def test_tamano_total_conserva_la_forma_hermana(self) -> None:
+        original = _CASOS["tamano_total"]
+        reconstruido = pickle.loads(pickle.dumps(original))  # noqa: S301
+        assert isinstance(reconstruido, ErrorTamano)
+        assert set(reconstruido.contexto) == {"archivos", "limite_bytes", "recibido_bytes"}
+        assert "archivo" not in reconstruido.contexto
 
 
 def test_manejador_registrado_en_la_app_embarcada() -> None:

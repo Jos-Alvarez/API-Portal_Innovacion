@@ -99,11 +99,38 @@ Contexto = (
 )
 
 
+def _reconstruir(cls: type[ErrorTipificado]) -> ErrorTipificado:
+    """Reconstructor de nivel de módulo para `ErrorTipificado.__reduce__`.
+
+    Cada `__init__` de las subclases es solo-por-palabra-clave, así que
+    `pickle` no puede volver a invocarlo con la tupla vacía que produce el
+    `__reduce__` heredado de `Exception` (ítem #8, design.md §5, V6). Este
+    reconstructor evita `__init__` por completo con `cls.__new__(cls)`;
+    `pickle` restaura el resto del estado escribiendo `__dict__` encima.
+    Debe vivir a nivel de módulo -- no como método ni función anidada --
+    porque `pickle` lo referencia por nombre calificado.
+    """
+    return cls.__new__(cls)
+
+
 class ErrorTipificado(Exception):
     """Base de los cinco tipos del ADR 0014. Un solo manejador la cubre (V2)."""
 
     tipo: ClassVar[TipoError]
     contexto: Contexto
+
+    def __reduce__(self) -> tuple[object, ...]:
+        """Garantiza que todo `ErrorTipificado` sobreviva a un `pickle` round-trip.
+
+        Necesario porque el `Pipe` entre el proceso padre y el hijo dedicado
+        (ítem #8) usa pickling para transportar el resultado, y un error
+        tipificado levantado por el módulo debe cruzar esa frontera intacto.
+        Sin este método, `self.args == ()` (cada subclase llama a
+        `super().__init__()` sin argumentos) y `pickle.loads` intenta
+        reconstruir con `cls()`, que falla porque `__init__` exige
+        argumentos solo-por-palabra-clave.
+        """
+        return (_reconstruir, (type(self),), dict(self.__dict__))
 
 
 class ErrorFormato(ErrorTipificado):
