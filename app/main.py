@@ -9,31 +9,25 @@ un error de configuración.
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-
 from fastapi import APIRouter, FastAPI
 from starlette.middleware import Middleware
 from starlette.routing import Mount
 
-from app.core.configuracion import obtener_configuracion
 from app.core.errores import registrar_manejador_errores
 from app.core.seguridad import AutenticacionDeBorde, registrar_manejador_401
+from app.core.temporales import ciclo_de_vida
 from app.core.validacion_http import registrar_manejador_validacion
 from app.salud import router_salud
 
 
-@asynccontextmanager
-async def ciclo_de_vida(app: FastAPI) -> AsyncIterator[None]:
-    obtener_configuracion()  # 1. falla cerrado; ADR 0012 paso 2
-    # costura #5:  motor = obtener_motor()
-    # costura #11: contrastar_registry_contra_bd(motor, registry)
-    yield
-    # costura: cierre ordenado del motor (ítem #5)
-
-
 def crear_app() -> FastAPI:
+    # `ciclo_de_vida` (app/core/temporales.py) llama primero a
+    # `obtener_configuracion()` -- 1. falla cerrado; ADR 0012 paso 2 --,
+    # antes de tocar la raíz de temporales o el barrendero.
     app = FastAPI(lifespan=ciclo_de_vida)
+    # costura #5:  motor = obtener_motor()  (dentro de app.core.temporales.ciclo_de_vida)
+    # costura #11: contrastar_registry_contra_bd(motor, registry)
+    # costura: cierre ordenado del motor (ítem #5)
     app.include_router(router_salud)  # público, sin dependencias
     registrar_manejador_401(app)  # ítem #2, cableado en producción (design.md §3)
     registrar_manejador_validacion(app)  # ítem #6, obligación 2 (design.md §4)
