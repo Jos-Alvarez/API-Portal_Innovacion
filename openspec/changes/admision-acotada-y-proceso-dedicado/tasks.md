@@ -67,12 +67,12 @@ Budget note: the session-passed 400 and `openspec/config.yaml:42`'s 600 conflict
 
 ## Phase 4: S4 — Module composition (PR 4)
 
-- [ ] 4.1 `app/core/ejecucion.py`: module-level `_ejecutar_en_hijo(conexion: Connection, clave: str, entradas: list[ArchivoEntrada]) -> None` — picklable by qualified name; re-derives the processor via `REGISTRY[clave]`; a miss raises `ErrorClaveInexistente(causa="no_en_registry")`; sends exactly one `MensajeDelHijo`, closes, returns
-- [ ] 4.2 `app/core/ejecucion.py`: `ejecutar_modulo(*, clave: str, entradas: list[ArchivoEntrada], timeout: timedelta) -> list[ArchivoSalida]` — thin composition calling `ejecutar_aislado(_ejecutar_en_hijo, (clave, entradas), timeout=timeout)`; re-raises the crossed `ErrorTipificado` as-is, else translates to `FalloDelModulo`/`EjecucionExpirada`/`HijoMuerto`
-- [ ] 4.3 `app/core/interfaz.py`: rewrite the docstring caveat at lines 33-37 to state the resolved decision — the child re-imports the application module tree and looks up its `Procesador` instance from `REGISTRY` by `clave`; no serialized `Procesador` instance ever crosses the process boundary, only `clave` (`str`) and file paths (`procesador-interface` spec, MODIFIED Requirement "Procesador's docstring records the child-instantiation resolution")
-- [ ] 4.4 `tests/test_ejecucion.py`: `ejecutar_modulo` against the empty production `REGISTRY` → `ErrorClaveInexistente(causa="no_en_registry")` re-raised in the parent (V9 — real spawn, real child import, real lookup, real `__reduce__` round-trip, zero production test hooks)
-- [ ] 4.5 `tests/test_ejecucion.py`: assert `Procesador.__doc__` states the resolved child-instantiation decision (docstring content check, mirrors the `procesador-interface` scenario)
-- [ ] 4.6 Verify: `uv run ruff check . && uv run ruff format --check . && uv run mypy app tests && uv run pytest`
+- [x] 4.1 `app/core/ejecucion.py`: module-level `_ejecutar_en_hijo(conexion: Connection, clave: str, entradas: list[ArchivoEntrada]) -> None` — picklable by qualified name; re-derives the processor via `REGISTRY[clave]`; a miss raises `ErrorClaveInexistente(causa="no_en_registry")`; sends exactly one `MensajeDelHijo`, closes, returns
+- [x] 4.2 `app/core/ejecucion.py`: `ejecutar_modulo(*, clave: str, entradas: list[ArchivoEntrada], timeout: timedelta) -> list[ArchivoSalida]` — thin composition calling `ejecutar_aislado(_ejecutar_en_hijo, (clave, entradas), timeout=timeout)`; re-raises the crossed `ErrorTipificado` as-is, else translates to `FalloDelModulo`/`EjecucionExpirada`/`HijoMuerto`
+- [x] 4.3 `app/core/interfaz.py`: rewrite the docstring caveat at lines 33-37 to state the resolved decision — the child re-imports the application module tree and looks up its `Procesador` instance from `REGISTRY` by `clave`; no serialized `Procesador` instance ever crosses the process boundary, only `clave` (`str`) and file paths (`procesador-interface` spec, MODIFIED Requirement "Procesador's docstring records the child-instantiation resolution")
+- [x] 4.4 `tests/test_ejecucion.py`: `ejecutar_modulo` against the empty production `REGISTRY` → `ErrorClaveInexistente(causa="no_en_registry")` re-raised in the parent (V9 — real spawn, real child import, real lookup, real `__reduce__` round-trip, zero production test hooks)
+- [x] 4.5 `tests/test_ejecucion.py`: assert `Procesador.__doc__` states the resolved child-instantiation decision (docstring content check, mirrors the `procesador-interface` scenario)
+- [x] 4.6 Verify: `uv run ruff check . && uv run ruff format --check . && uv run mypy app tests && uv run pytest`
 
 ## Out of scope (explicitly not this item)
 
