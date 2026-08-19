@@ -293,6 +293,12 @@ def test_rutas_de_produccion_no_cambian() -> None:
         ("/docs", ("GET", "HEAD")),
         ("/docs/oauth2-redirect", ("GET", "HEAD")),
         ("/redoc", ("GET", "HEAD")),
+        # Actualización deliberada del pin (ítem #6, segunda mitad;
+        # design.md §6): primera ruta registrada dentro del montaje
+        # `/interno`. El rojo acá, tras B3.1, es la prueba de que la
+        # superficie cambió a propósito -- la misma convención que
+        # estableció `service-token-auth`.
+        ("/interno/procesadores/{clave_procesador}", ("POST",)),
     }
     esperado_montajes = {"/interno"}
     assert rutas == esperado

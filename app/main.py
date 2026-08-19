@@ -17,6 +17,7 @@ from app.core.errores import registrar_manejador_errores
 from app.core.seguridad import AutenticacionDeBorde, registrar_manejador_401
 from app.core.temporales import ciclo_de_vida
 from app.core.validacion_http import registrar_manejador_validacion
+from app.recepcion import router_recepcion
 from app.salud import router_salud
 
 
@@ -36,6 +37,7 @@ def crear_app() -> FastAPI:
     # montaje, nunca fuera de él. No hay lista de rutas en ningún lugar
     # (ADR 0016, ADR 0019); la pertenencia es el registro dentro del router.
     router_interno = APIRouter()
+    router_interno.include_router(router_recepcion)  # ítem #6, segunda mitad (design.md §4/§6)
     app.router.routes.append(
         Mount("/interno", app=router_interno, middleware=[Middleware(AutenticacionDeBorde)])
     )
