@@ -5,8 +5,13 @@ en el sistema de tipos, no una convención. Añadir un sexto tipo exige cuatro
 ediciones coordinadas y visibles en el diff: un miembro del enum, un
 `TypedDict`, una subclase y una entrada en el mapa de estados.
 
-Nada de este módulo se cablea en `crear_app()`; lo consume el router de
-pruebas de `tests/test_errores_tipificados.py` (design.md §6).
+Lo que ADR 0014 cierra es el **conjunto de miembros del enum**, no las formas
+de contexto: el ítem #7 añade `ContextoTamanoTotal` a la unión sin tocar
+`TipoError`, y ADR 0021 registra por qué eso no reabre 0014.
+
+El manejador se cablea en `crear_app()` vía `registrar_manejador_errores`; el
+router de pruebas de `tests/test_errores_tipificados.py` ejercita cada caso
+(design.md §6).
 
 Este módulo importa únicamente la biblioteca estándar más `fastapi`/
 `starlette`; no importa nada de `app/procesadores/` (invariante de ADR 0011).
@@ -47,6 +52,20 @@ class ContextoTamano(TypedDict):
     recibido_bytes: int
 
 
+class ContextoTamanoTotal(TypedDict):
+    """Violación del límite total del lote: ningún archivo es el culpable.
+
+    Hermano de `ContextoTamano`, no una ampliación suya (ADR 0021). ADR 0014
+    cierra el conjunto de miembros del enum, no las formas de contexto: este
+    `TypedDict` entra en la unión `Contexto` y `ContextoTamano` queda intacto
+    para el caso de un solo archivo.
+    """
+
+    archivos: list[str]
+    limite_bytes: int
+    recibido_bytes: int
+
+
 class ContextoContenido(TypedDict):
     archivo: str
     motivo: Literal["columna_faltante", "cero_filas"]
@@ -73,6 +92,7 @@ class ContextoClaveInexistente(TypedDict):
 Contexto = (
     ContextoFormato
     | ContextoTamano
+    | ContextoTamanoTotal
     | ContextoContenido
     | ContextoCantidad
     | ContextoClaveInexistente
@@ -102,14 +122,36 @@ class ErrorFormato(ErrorTipificado):
 
 
 class ErrorTamano(ErrorTipificado):
+    """Un solo tipo (`TipoError.TAMANO`) con dos formas de contexto (ADR 0021).
+
+    `__init__` conserva sin cambios la forma que ADR 0014 fija verbatim para el
+    caso de un solo archivo. `total()` construye la variante de lote, siguiendo
+    el patrón ya embarcado de `ErrorContenido.columna_faltante`.
+    """
+
     tipo = TipoError.TAMANO
-    contexto: ContextoTamano
+    contexto: ContextoTamano | ContextoTamanoTotal
 
     def __init__(self, *, archivo: str, limite_bytes: int, recibido_bytes: int) -> None:
         super().__init__()
         self.contexto = ContextoTamano(
             archivo=archivo, limite_bytes=limite_bytes, recibido_bytes=recibido_bytes
         )
+
+    @classmethod
+    def total(cls, *, archivos: list[str], limite_bytes: int, recibido_bytes: int) -> ErrorTamano:
+        """Violación del límite total del lote, sin un `archivo` culpable.
+
+        El `archivo=""` que construye `__init__` se sobrescribe de inmediato: es
+        una línea de descarte deliberada, elegida sobre un `__init__` que se
+        ramifique según cuál de dos argumentos mutuamente excluyentes recibió.
+        Ningún estado inválido escapa de este método.
+        """
+        error = cls(archivo="", limite_bytes=limite_bytes, recibido_bytes=recibido_bytes)
+        error.contexto = ContextoTamanoTotal(
+            archivos=archivos, limite_bytes=limite_bytes, recibido_bytes=recibido_bytes
+        )
+        return error
 
 
 class ErrorContenido(ErrorTipificado):

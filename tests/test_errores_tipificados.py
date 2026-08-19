@@ -34,6 +34,11 @@ _CASOS: Final[Mapping[str, ErrorTipificado]] = {
         archivo="enero.csv", formato_recibido="csv", formatos_aceptados=["xlsx"]
     ),
     "tamano": ErrorTamano(archivo="enero.xlsx", limite_bytes=26_214_400, recibido_bytes=31_457_280),
+    "tamano_total": ErrorTamano.total(
+        archivos=["enero.xlsx", "febrero.xlsx", "marzo.xlsx"],
+        limite_bytes=26_214_400,
+        recibido_bytes=31_457_280,
+    ),
     "contenido_columna": ErrorContenido.columna_faltante(archivo="enero.xlsx", columna="Fecha"),
     "contenido_cero_filas": ErrorContenido.cero_filas(archivo="enero.xlsx"),
     "cantidad": ErrorCantidad(minimo=1, maximo=2, recibido=5),
@@ -59,6 +64,17 @@ _CUERPOS_ESPERADOS: Final[Mapping[str, tuple[int, dict[str, object]]]] = {
             "tipo": "tamano",
             "contexto": {
                 "archivo": "enero.xlsx",
+                "limite_bytes": 26_214_400,
+                "recibido_bytes": 31_457_280,
+            },
+        },
+    ),
+    "tamano_total": (
+        422,
+        {
+            "tipo": "tamano",
+            "contexto": {
+                "archivos": ["enero.xlsx", "febrero.xlsx", "marzo.xlsx"],
                 "limite_bytes": 26_214_400,
                 "recibido_bytes": 31_457_280,
             },
@@ -204,6 +220,46 @@ def test_todos_los_tipos_tienen_estado_y_caso() -> None:
 def test_cero_filas_deja_columna_en_none() -> None:
     error = ErrorContenido.cero_filas(archivo="marzo.xlsx")
     assert error.contexto["columna"] is None
+
+
+class TestDosFormasDeTamano:
+    """La unión crece, el enum no (ADR 0021, design.md §6)."""
+
+    def test_un_solo_archivo_conserva_la_forma_verbatim_de_adr_0014(self) -> None:
+        # Guarda de regresión: ADR 0014 fija estos tres campos, ni uno más ni
+        # uno menos, para el caso de un solo archivo.
+        error = ErrorTamano(archivo="enero.xlsx", limite_bytes=100, recibido_bytes=101)
+        assert set(error.contexto) == {"archivo", "limite_bytes", "recibido_bytes"}
+        assert error.contexto == {
+            "archivo": "enero.xlsx",
+            "limite_bytes": 100,
+            "recibido_bytes": 101,
+        }
+
+    def test_el_total_usa_la_forma_hermana_sin_archivo(self) -> None:
+        error = ErrorTamano.total(
+            archivos=["enero.xlsx", "febrero.xlsx"], limite_bytes=100, recibido_bytes=150
+        )
+        assert set(error.contexto) == {"archivos", "limite_bytes", "recibido_bytes"}
+        assert "archivo" not in error.contexto
+        assert error.contexto["archivos"] == ["enero.xlsx", "febrero.xlsx"]
+
+    def test_el_placeholder_de_construccion_no_escapa(self) -> None:
+        # `total()` construye con `archivo=""` y lo sobrescribe: ningún estado
+        # intermedio inválido debe ser observable desde afuera.
+        error = ErrorTamano.total(archivos=["enero.xlsx"], limite_bytes=100, recibido_bytes=150)
+        assert "" not in error.contexto.values()
+
+    def test_ambas_formas_comparten_tipo_y_estado(self) -> None:
+        uno = ErrorTamano(archivo="enero.xlsx", limite_bytes=100, recibido_bytes=101)
+        total = ErrorTamano.total(archivos=["enero.xlsx"], limite_bytes=100, recibido_bytes=101)
+        assert uno.tipo is total.tipo is TipoError.TAMANO
+        assert _ESTADO_HTTP[uno.tipo] == _ESTADO_HTTP[total.tipo] == 422
+
+    def test_total_es_la_misma_clase_de_excepcion(self) -> None:
+        total = ErrorTamano.total(archivos=["enero.xlsx"], limite_bytes=100, recibido_bytes=101)
+        assert isinstance(total, ErrorTamano)
+        assert isinstance(total, ErrorTipificado)
 
 
 class TestFormaDeContexto:
