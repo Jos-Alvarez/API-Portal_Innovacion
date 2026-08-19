@@ -14,6 +14,7 @@ import pytest
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.testclient import TestClient
 from starlette.requests import Request
+from starlette.routing import Mount
 
 from app.core.seguridad import _coincide, _credencial_presentada, _token_esperado
 
@@ -242,31 +243,50 @@ def test_sentinela_ausente_de_salida_combinada() -> None:
     assert _SENTINELA_TOKEN_SEGURIDAD not in resultado.salida
 
 
-def _rutas_efectivas(rutas: Sequence[object]) -> set[tuple[str, tuple[str, ...]]]:
-    """Aplana el árbol de rutas, incluyendo `_IncludedRouter` (starlette 1.6.0).
+def _rutas_efectivas(
+    rutas: Sequence[object], prefijo: str = ""
+) -> tuple[set[tuple[str, tuple[str, ...]]], set[str]]:
+    """Aplana el árbol de rutas, incluyendo `_IncludedRouter` y `Mount`.
 
     `include_router` en starlette 1.6.0 ya no vuelca las rutas incluidas
     directamente en `app.routes`: las envuelve en un `_IncludedRouter` cuyo
     `original_router.routes` guarda las rutas reales. Sin aplanar, esta
     prueba pasaría vacuamente comparando un `_IncludedRouter` sin `path` ni
     `methods` contra el literal esperado.
+
+    `Mount` tampoco tiene `methods` ni `original_router` (design.md §5, V10):
+    sin este segundo caso, el montaje `/interno` sería silenciosamente
+    invisible para esta prueba -- no la enrojecería, la dejaría pasar en
+    blanco mientras aparece una superficie autenticada entera. Por eso se
+    devuelve un segundo conjunto, solo de montajes, en vez de fundirlos con
+    las rutas: la ausencia de `methods` en un `Mount` no es una ruta sin
+    métodos, es una frontera distinta.
     """
-    resultado: set[tuple[str, tuple[str, ...]]] = set()
+    rutas_planas: set[tuple[str, tuple[str, ...]]] = set()
+    montajes: set[str] = set()
     for ruta in rutas:
         sub_router = getattr(ruta, "original_router", None)
         if sub_router is not None:
-            resultado |= _rutas_efectivas(sub_router.routes)
+            sub_rutas, sub_montajes = _rutas_efectivas(sub_router.routes, prefijo)
+            rutas_planas |= sub_rutas
+            montajes |= sub_montajes
+            continue
+        if isinstance(ruta, Mount):
+            montajes.add(prefijo + ruta.path)
+            sub_rutas, sub_montajes = _rutas_efectivas(ruta.routes, prefijo + ruta.path)
+            rutas_planas |= sub_rutas
+            montajes |= sub_montajes
             continue
         methods = getattr(ruta, "methods", None)
         if methods is not None:
-            resultado.add((ruta.path, tuple(sorted(methods))))  # type: ignore[attr-defined]
-    return resultado
+            rutas_planas.add((prefijo + ruta.path, tuple(sorted(methods))))  # type: ignore[attr-defined]
+    return rutas_planas, montajes
 
 
 def test_rutas_de_produccion_no_cambian() -> None:
     from app.main import crear_app
 
-    rutas = _rutas_efectivas(crear_app().routes)
+    rutas, montajes = _rutas_efectivas(crear_app().routes)
     esperado = {
         ("/salud", ("GET",)),
         ("/openapi.json", ("GET", "HEAD")),
@@ -274,4 +294,6 @@ def test_rutas_de_produccion_no_cambian() -> None:
         ("/docs/oauth2-redirect", ("GET", "HEAD")),
         ("/redoc", ("GET", "HEAD")),
     }
+    esperado_montajes = {"/interno"}
     assert rutas == esperado
+    assert montajes == esperado_montajes

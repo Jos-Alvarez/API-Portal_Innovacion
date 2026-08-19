@@ -12,9 +12,14 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
+from starlette.middleware import Middleware
+from starlette.routing import Mount
 
 from app.core.configuracion import obtener_configuracion
+from app.core.errores import registrar_manejador_errores
+from app.core.seguridad import AutenticacionDeBorde, registrar_manejador_401
+from app.core.validacion_http import registrar_manejador_validacion
 from app.salud import router_salud
 
 
@@ -30,8 +35,16 @@ async def ciclo_de_vida(app: FastAPI) -> AsyncIterator[None]:
 def crear_app() -> FastAPI:
     app = FastAPI(lifespan=ciclo_de_vida)
     app.include_router(router_salud)  # público, sin dependencias
-    # costura #2: routers de procesadores con dependencies=[Depends(exigir_token)]
-    # (nunca middleware global ni allow-list -- ver design.md D5)
+    registrar_manejador_401(app)  # ítem #2, cableado en producción (design.md §3)
+    registrar_manejador_validacion(app)  # ítem #6, obligación 2 (design.md §4)
+    registrar_manejador_errores(app)  # ítem #3, cableado en producción (supera design.md §12)
+    # Frontera autenticada: cualquier ruta de procesador vive dentro de este
+    # montaje, nunca fuera de él. No hay lista de rutas en ningún lugar
+    # (ADR 0016, ADR 0019); la pertenencia es el registro dentro del router.
+    router_interno = APIRouter()
+    app.router.routes.append(
+        Mount("/interno", app=router_interno, middleware=[Middleware(AutenticacionDeBorde)])
+    )
     return app
 
 
