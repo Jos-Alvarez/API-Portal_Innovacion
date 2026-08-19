@@ -39,19 +39,19 @@ Budget note: the session-passed 400 and `openspec/config.yaml:42`'s 600 conflict
 
 ## Phase 2: S2 — Admission (PR 2)
 
-- [ ] 2.1 `app/core/ejecucion.py` (new file, admission half): `obtener_semaforo() -> threading.BoundedSemaphore` as `@lru_cache(maxsize=1)` reading `ejecuciones_max` from config — lazy so import has no side effect (spawn precondition)
-- [ ] 2.2 `app/core/ejecucion.py`: `class ServicioSaturado(Exception)`, `responder_servicio_saturado(request, exc) -> Response` (bare 503, no body — 401/422 pattern), `registrar_manejador_503(app: FastAPI) -> None`
-- [ ] 2.3 `app/core/ejecucion.py`: `@contextmanager admitir() -> Iterator[None]` — `acquire(blocking=False)` raises `ServicioSaturado` before `try:` on failure (no release pairs with it); success enters `try/finally: semaphore.release()` as the only `release()` call in the repository (design §3)
-- [ ] 2.4 `app/core/ejecucion.py`: `class AdmisionDeBorde` ASGI middleware — passthrough for non-`http` scope types, otherwise wraps `await self.app(...)` in `with admitir():`
-- [ ] 2.5 `app/main.py`: add `Middleware(AdmisionDeBorde)` as the **second** entry on the existing `Mount("/interno", ...)`'s `middleware=[...]` list (auth outermost — V1); register `registrar_manejador_503(app)`
-- [ ] 2.6 `tests/conftest.py`: extend the config/cache-clear fixture to cover `ejecuciones_max`/`timeout_ejecucion` env vars and clear `obtener_semaforo`'s `lru_cache` between tests
-- [ ] 2.7 `tests/test_admision.py` (new): unit — `admitir()` releases on return and on exception; failed `acquire(blocking=False)` raises `ServicioSaturado` and releases nothing
-- [ ] 2.8 `tests/test_admision.py`: integration — slot released on every inner-app outcome (200, `ErrorTipificado`, `RuntimeError`, `EjecucionExpirada`, `NotImplementedError`, cancelled task) via a tiny inner ASGI app wrapped directly in `AdmisionDeBorde` (`bounded-execution` spec, Requirement "The admission slot releases on all four exit paths")
-- [ ] 2.9 `tests/test_admision.py`: 503 end-to-end, deterministic — real `crear_app()` + `TestClient(raise_server_exceptions=False)`, `EJECUCIONES_MAX=1`, pre-acquire the slot before the request (saturation by pre-acquisition, never racing threads) (`bounded-execution` spec, Requirement "Admission is rejected immediately when saturated")
-- [ ] 2.10 `tests/test_admision.py`: saturation reads no body and writes no temp file — pre-acquired slot + malformed multipart body; assert 503 not 422 (proves the parser never ran) and zero `pet-*` temp directories created
-- [ ] 2.11 `tests/test_admision.py`: auth outranks admission — slot pre-acquired **and** bad/missing token → 401, not 503, and the slot is not consumed by that request (`bounded-execution` spec, Requirement "Admission is checked after the token check")
-- [ ] 2.12 `tests/test_admision.py`: `/salud` unaffected while saturated — slot pre-acquired → `GET /salud` still 200 (V3) (`bounded-execution` spec, Requirement "/salud is never subject to admission")
-- [ ] 2.13 Verify: `uv run ruff check . && uv run ruff format --check . && uv run mypy app tests && uv run pytest`
+- [x] 2.1 `app/core/ejecucion.py` (new file, admission half): `obtener_semaforo() -> threading.BoundedSemaphore` as `@lru_cache(maxsize=1)` reading `ejecuciones_max` from config — lazy so import has no side effect (spawn precondition)
+- [x] 2.2 `app/core/ejecucion.py`: `class ServicioSaturado(Exception)`, `responder_servicio_saturado(request, exc) -> Response` (bare 503, no body — 401/422 pattern), `registrar_manejador_503(app: FastAPI) -> None`
+- [x] 2.3 `app/core/ejecucion.py`: `@contextmanager admitir() -> Iterator[None]` — `acquire(blocking=False)` raises `ServicioSaturado` before `try:` on failure (no release pairs with it); success enters `try/finally: semaphore.release()` as the only `release()` call in the repository (design §3)
+- [x] 2.4 `app/core/ejecucion.py`: `class AdmisionDeBorde` ASGI middleware — passthrough for non-`http` scope types, otherwise wraps `await self.app(...)` in `with admitir():`
+- [x] 2.5 `app/main.py`: add `Middleware(AdmisionDeBorde)` as the **second** entry on the existing `Mount("/interno", ...)`'s `middleware=[...]` list (auth outermost — V1); register `registrar_manejador_503(app)`
+- [x] 2.6 `tests/conftest.py`: extend the config/cache-clear fixture to cover `ejecuciones_max`/`timeout_ejecucion` env vars and clear `obtener_semaforo`'s `lru_cache` between tests
+- [x] 2.7 `tests/test_admision.py` (new): unit — `admitir()` releases on return and on exception; failed `acquire(blocking=False)` raises `ServicioSaturado` and releases nothing
+- [x] 2.8 `tests/test_admision.py`: integration — slot released on every inner-app outcome (200, `ErrorTipificado`, `RuntimeError`, `EjecucionExpirada`, `NotImplementedError`, cancelled task) via a tiny inner ASGI app wrapped directly in `AdmisionDeBorde` (`bounded-execution` spec, Requirement "The admission slot releases on all four exit paths")
+- [x] 2.9 `tests/test_admision.py`: 503 end-to-end, deterministic — real `crear_app()` + `TestClient(raise_server_exceptions=False)`, `EJECUCIONES_MAX=1`, pre-acquire the slot before the request (saturation by pre-acquisition, never racing threads) (`bounded-execution` spec, Requirement "Admission is rejected immediately when saturated")
+- [x] 2.10 `tests/test_admision.py`: saturation reads no body and writes no temp file — pre-acquired slot + malformed multipart body; assert 503 not 422 (proves the parser never ran) and zero `pet-*` temp directories created
+- [x] 2.11 `tests/test_admision.py`: auth outranks admission — slot pre-acquired **and** bad/missing token → 401, not 503, and the slot is not consumed by that request (`bounded-execution` spec, Requirement "Admission is checked after the token check")
+- [x] 2.12 `tests/test_admision.py`: `/salud` unaffected while saturated — slot pre-acquired → `GET /salud` still 200 (V3) (`bounded-execution` spec, Requirement "/salud is never subject to admission")
+- [x] 2.13 Verify: `uv run ruff check . && uv run ruff format --check . && uv run mypy app tests && uv run pytest`
 
 ## Phase 3: S3 — Process plumbing (PR 3)
 
