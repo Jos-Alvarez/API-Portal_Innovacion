@@ -5,6 +5,12 @@ Phase 2 of this change. The ``limpiar_cache_configuracion`` fixture below
 imports it **inside the fixture body**, not at module scope, precisely so
 that Phase 1's test collection (``tests/test_arranque_spawn.py``) does not
 break on a module that has not been created yet.
+
+``limpiar_cache_configuracion`` also clears ``obtener_semaforo``'s
+``lru_cache`` (item #8, S2): the semaphore is sized from
+``ejecuciones_max`` at construction time, so a stale cached instance from an
+earlier test would silently keep the previous test's concurrency ceiling.
+Same import-inside-fixture-body reasoning applies to ``app.core.ejecucion``.
 """
 
 from __future__ import annotations
@@ -47,9 +53,18 @@ def token_sentinela(monkeypatch: pytest.MonkeyPatch) -> str:
 
 @pytest.fixture
 def limpiar_cache_configuracion() -> Iterator[None]:
-    """Limpia el cache de obtener_configuracion() antes y después del test."""
+    """Limpia los caches de configuración y del semáforo de admisión.
+
+    Ambos son ``@lru_cache(maxsize=1)`` derivados del entorno de proceso: un
+    valor cacheado de una prueba anterior (``EJECUCIONES_MAX`` incluido)
+    filtraría hacia la siguiente si no se limpiara acá, en el mismo lugar
+    donde ya se limpiaba ``obtener_configuracion``.
+    """
     from app.core.configuracion import obtener_configuracion
+    from app.core.ejecucion import obtener_semaforo
 
     obtener_configuracion.cache_clear()
+    obtener_semaforo.cache_clear()
     yield
     obtener_configuracion.cache_clear()
+    obtener_semaforo.cache_clear()
