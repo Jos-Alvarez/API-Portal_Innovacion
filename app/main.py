@@ -13,6 +13,7 @@ from fastapi import APIRouter, FastAPI
 from starlette.middleware import Middleware
 from starlette.routing import Mount
 
+from app.core.ejecucion import AdmisionDeBorde, registrar_manejador_503
 from app.core.errores import registrar_manejador_errores
 from app.core.seguridad import AutenticacionDeBorde, registrar_manejador_401
 from app.core.temporales import ciclo_de_vida
@@ -33,13 +34,21 @@ def crear_app() -> FastAPI:
     registrar_manejador_401(app)  # ítem #2, cableado en producción (design.md §3)
     registrar_manejador_validacion(app)  # ítem #6, obligación 2 (design.md §4)
     registrar_manejador_errores(app)  # ítem #3, cableado en producción (supera design.md §12)
+    registrar_manejador_503(app)  # ítem #8, mitad de admisión (design.md §3, §7)
     # Frontera autenticada: cualquier ruta de procesador vive dentro de este
     # montaje, nunca fuera de él. No hay lista de rutas en ningún lugar
     # (ADR 0016, ADR 0019); la pertenencia es el registro dentro del router.
+    # Orden de la lista: auth va primero -- V1 del design del ítem #8, `Mount`
+    # aplica sus middlewares en orden inverso, así que la primera entrada
+    # queda más externa y la admisión se evalúa después del token.
     router_interno = APIRouter()
     router_interno.include_router(router_recepcion)  # ítem #6, segunda mitad (design.md §4/§6)
     app.router.routes.append(
-        Mount("/interno", app=router_interno, middleware=[Middleware(AutenticacionDeBorde)])
+        Mount(
+            "/interno",
+            app=router_interno,
+            middleware=[Middleware(AutenticacionDeBorde), Middleware(AdmisionDeBorde)],
+        )
     )
     return app
 
