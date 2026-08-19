@@ -6,8 +6,11 @@ control, no de siete `return` que coinciden hoy por casualidad. Todo el
 análisis vive en predicados `bool` (un canal de un bit), hay exactamente un
 sitio de `raise` y exactamente un sitio de construcción de `Response`.
 
-Nada de este módulo se cablea en `crear_app()`; lo consume el router de
-pruebas de `tests/test_seguridad_token.py` (design.md §7).
+`registrar_manejador_401` se cablea en `crear_app()` (ítem #6, design.md §3).
+`AutenticacionDeBorde` es el middleware ASGI de la frontera autenticada del
+montaje `/interno` (ítem #6, design.md §2; ADR 0019): decide con
+`scope["headers"]` y nada más, nunca llama a `receive()`, así que el 401 sale
+antes de que exista un solo byte de cuerpo.
 """
 
 from __future__ import annotations
@@ -20,6 +23,7 @@ from typing import Final
 from fastapi import FastAPI
 from starlette.requests import Request
 from starlette.responses import Response
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.configuracion import obtener_configuracion
 
@@ -74,3 +78,30 @@ async def exigir_token(request: Request) -> None:
     """Cierra toda petición sin credencial válida. Único punto de rechazo."""
     if not _es_valida(request):
         raise TokenInvalido
+
+
+class AutenticacionDeBorde:
+    """Middleware ASGI del montaje autenticado (design.md §2.3; ADR 0019).
+
+    Decide con `scope["headers"]` y nada más: nunca llama a `receive()`, así
+    que el 401 sale antes de que exista un solo byte de cuerpo (PRD: "401
+    antes de leer el cuerpo del request"). El `Request` que construye lleva
+    el `receive` vacío por defecto, que *lanza* si alguien intenta leer: la
+    imposibilidad de consumir el cuerpo es estructural, no una convención.
+
+    No reimplementa la comparación: llama a `exigir_token`, el único sitio de
+    `raise` del ítem #2. El `raise` se propaga al `ExceptionMiddleware` de la
+    app exterior, que ya envuelve al `Router` -- por eso `TokenInvalido`
+    sigue teniendo un único sitio de construcción de respuesta,
+    `responder_token_invalido`, sin cambios.
+    """
+
+    __slots__ = ("app",)
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http":
+            await exigir_token(Request(scope))
+        await self.app(scope, receive, send)
