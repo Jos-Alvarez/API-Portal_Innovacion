@@ -1,32 +1,42 @@
 """Admisión acotada y plomería del proceso dedicado (ítem #8, BACKLOG).
 
 Dos mitades independientes detrás de un solo módulo (design.md §1, ADR 0022).
-Esta entrega (S2, PR 2 de 4) ships **solo la mitad de admisión**: el
-semáforo perezoso, el gestor de contexto `admitir()` -- con la misma forma
-que `temporales.reservar()` -- y el middleware ASGI `AdmisionDeBorde`, que es
-el único sitio de adquisición y el único sitio de liberación del slot en todo
-el repositorio (design.md §3). La mitad de proceso (`Pipe`, `Process`,
-`clasificar_desenlace`, `ejecutar_aislado`, `ejecutar_modulo`) llega en S3/S4.
+S2 (PR 2 de 4) embarcó la mitad de admisión: el semáforo perezoso, el gestor
+de contexto `admitir()` -- con la misma forma que `temporales.reservar()` --
+y el middleware ASGI `AdmisionDeBorde`, que es el único sitio de adquisición
+y el único sitio de liberación del slot en todo el repositorio (design.md
+§3). Esta entrega (S3, PR 3 de 4) agrega la **mitad de proceso**: los tres
+mensajes que cruzan el `Pipe`, el clasificador puro `clasificar_desenlace`,
+la jerarquía de fallas no-`TipoError` y la plomería genérica
+`ejecutar_aislado` (design.md §5-§7). Lo que falta -- `_ejecutar_en_hijo` y
+`ejecutar_modulo`, la composición delgada sobre `REGISTRY` -- llega en S4.
 
 El semáforo es perezoso (`@lru_cache(maxsize=1)`, igual que
 `obtener_configuracion`): importar este módulo no lee configuración y no
 tiene efecto de importación -- la precondición que `spawn` impone sobre todo
-módulo que el hijo vuelve a importar (ADR 0012, Consecuencias). Aunque la
-mitad de proceso todavía no existe, este módulo ya vive donde el hijo lo
-reimportará, así que la disciplina de importación perezosa empieza acá.
+módulo que el hijo vuelve a importar (ADR 0012, Consecuencias). Ahora que la
+mitad de proceso existe, esa disciplina es literal: el hijo reimporta este
+módulo entero antes de invocar su objetivo.
 
 `ServicioSaturado` viaja como un 503 desnudo -- igual que `TokenInvalido`
 viaja como un 401 desnudo en `app/core/seguridad.py`, el precedente que este
 módulo sigue -- sin cuerpo `tipo`/`contexto`: no es un error tipificado, y
 `TipoError` sigue teniendo exactamente cinco miembros (design.md §7, spec
-"This domain introduces no sixth `TipoError` value").
+"This domain introduces no sixth `TipoError` value"). Las fallas de la mitad
+de proceso (`EjecucionExpirada`, `HijoMuerto`, `FalloDelModulo`) tampoco son
+`TipoError`: son excepciones propias que el ítem #10 traduce a HTTP.
 """
 
 from __future__ import annotations
 
+import multiprocessing
 import threading
-from collections.abc import Iterator
+import time
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import timedelta
+from enum import StrEnum
 from functools import lru_cache
 
 from fastapi import FastAPI
@@ -35,6 +45,8 @@ from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.configuracion import obtener_configuracion
+from app.core.errores import ErrorTipificado
+from app.core.tipos import ArchivoSalida
 
 
 class ServicioSaturado(Exception):
@@ -120,3 +132,174 @@ class AdmisionDeBorde:
             return
         with admitir():
             await self.app(scope, receive, send)
+
+
+# --- proceso: mensajes que cruzan el Pipe ------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class SalidaDelHijo:
+    """El hijo terminó y produjo archivos de salida (design.md §5)."""
+
+    archivos: list[ArchivoSalida]
+
+
+@dataclass(frozen=True, slots=True)
+class ErrorDelHijo:
+    """El hijo levantó un `ErrorTipificado`; cruza intacto gracias a S1's
+    `ErrorTipificado.__reduce__` (design.md §5, V6)."""
+
+    error: ErrorTipificado
+
+
+@dataclass(frozen=True, slots=True)
+class ExcepcionDelHijo:
+    """El hijo levantó una excepción sin tipificar. `traza` es un `str`
+    (`traceback.format_exc()`) porque un objeto de excepción vivo no cruza
+    de forma confiable el `Pipe` -- puede llevar atributos no picklables y
+    pierde su traceback al deserializarse (design.md §5)."""
+
+    clase: str
+    mensaje: str
+    traza: str
+
+
+MensajeDelHijo = SalidaDelHijo | ErrorDelHijo | ExcepcionDelHijo
+
+
+# --- proceso: clasificación del desenlace ------------------------------------
+
+
+class Desenlace(StrEnum):
+    """Los tres desenlaces posibles de un hijo dedicado (design.md §6)."""
+
+    NORMAL = "normal"
+    MATADO = "matado"
+    ANOMALO = "anomalo"
+
+
+def clasificar_desenlace(*, exitcode: int | None, matado: bool, hubo_mensaje: bool) -> Desenlace:
+    """Clasifica el desenlace de un hijo. Pura: sin E/S, sin `Process`.
+
+    `matado` gana siempre (design.md §6, V4): en Windows, `TerminateProcess`
+    se normaliza de vuelta a `-SIGTERM`, así que el número de `exitcode` no
+    puede distinguir el `kill()` propio de una señal externa -- solo el
+    padre sabe si fue él quien mató al hijo, y debe decírselo al
+    clasificador en vez de intentar adivinarlo del número. Sin `matado`, un
+    mensaje bien formado con `exitcode == 0` es `NORMAL`; cualquier otra
+    combinación es `ANOMALO`.
+    """
+    if matado:
+        return Desenlace.MATADO
+    if hubo_mensaje and exitcode == 0:
+        return Desenlace.NORMAL
+    return Desenlace.ANOMALO
+
+
+# --- proceso: jerarquía de fallas (nunca TipoError, design.md §7) -----------
+
+
+class FalloDeEjecucion(Exception):
+    """Base de las fallas que la mitad de proceso produce. Nunca `TipoError`:
+    el ítem #10 las traduce a HTTP; este módulo no decide esa forma."""
+
+    __slots__ = ()
+
+
+class EjecucionExpirada(FalloDeEjecucion):
+    """El hijo no terminó dentro de `timeout` y fue matado de verdad."""
+
+    __slots__ = ()
+
+
+class HijoMuerto(FalloDeEjecucion):
+    """El hijo murió sin dejar un mensaje bien formado en el `Pipe`: EOF sin
+    mensaje, o un objeto recibido que no es ninguna de las tres formas de
+    `MensajeDelHijo` (violación de protocolo, design.md §5)."""
+
+    __slots__ = ("exitcode",)
+
+    def __init__(self, exitcode: int | None) -> None:
+        super().__init__()
+        self.exitcode = exitcode
+
+
+class FalloDelModulo(FalloDeEjecucion):
+    """Traducción, a cargo de `ejecutar_modulo` (S4), de un `ExcepcionDelHijo`
+    recibido del hijo -- no la levanta esta mitad de proceso."""
+
+    __slots__ = ("clase", "mensaje", "traza")
+
+    def __init__(self, *, clase: str, mensaje: str, traza: str) -> None:
+        super().__init__()
+        self.clase = clase
+        self.mensaje = mensaje
+        self.traza = traza
+
+
+# --- proceso: la plomería genérica -------------------------------------------
+
+
+def ejecutar_aislado(
+    objetivo: Callable[..., None], argumentos: tuple[object, ...], *, timeout: timedelta
+) -> MensajeDelHijo:
+    """Corre `objetivo` en un `multiprocessing.Process` dedicado y devuelve
+    lo que llegue por el `Pipe`, o levanta una falla de plomería.
+
+    Un proceso por llamada, nunca de un pool (ADR 0012 revisado). Orden
+    exacto, no incidental (design.md §5):
+
+    1. `Pipe(duplex=False)`, `Process(daemon=True).start()`.
+    2. El padre cierra **su propia copia** del extremo del hijo de
+       inmediato -- si no lo hiciera, la muerte del hijo nunca produciría
+       EOF y `poll()` esperaría el `timeout` completo en vano.
+    3. Se lee el `Pipe` **antes** de `join()`: un payload más grande que el
+       buffer del sistema operativo puede hacer que el hijo bloquee en
+       `send()` mientras el padre bloquea en `join()` -- un abrazo mortal.
+    4. Solo entonces `join(restante)`; si el hijo sigue vivo, `kill()` y un
+       segundo `join()` para confirmar que ya no está vivo -- un `join()`
+       que retorna no es, por sí solo, terminación.
+
+    Un mensaje bien formado es autoritativo (design.md §5): si llegó, se
+    devuelve tal cual sin importar cómo salga el hijo después -- su trabajo
+    ya está hecho. `recv()` no se confía a ciegas: el objeto recibido se
+    reduce por `isinstance` contra las tres formas de `MensajeDelHijo`;
+    cualquier otra cosa es una violación de protocolo (`HijoMuerto`).
+    """
+    padre, hijo = multiprocessing.Pipe(duplex=False)
+    proceso = multiprocessing.Process(target=objetivo, args=(hijo, *argumentos), daemon=True)
+    proceso.start()
+    hijo.close()  # LOAD-BEARING -- ver docstring, paso 2
+
+    limite = timeout.total_seconds()
+    inicio = time.monotonic()
+
+    def _restante() -> float:
+        return max(0.0, limite - (time.monotonic() - inicio))
+
+    mensaje: object | None = None
+    try:
+        if padre.poll(_restante()):
+            try:
+                mensaje = padre.recv()
+            except EOFError:
+                mensaje = None
+    finally:
+        padre.close()
+
+    proceso.join(_restante())
+    matado = False
+    if proceso.is_alive():
+        proceso.kill()
+        matado = True
+        proceso.join()  # confirma que ya no está vivo, no solo que kill() retornó
+
+    if isinstance(mensaje, SalidaDelHijo | ErrorDelHijo | ExcepcionDelHijo):
+        return mensaje
+
+    desenlace = clasificar_desenlace(
+        exitcode=proceso.exitcode, matado=matado, hubo_mensaje=mensaje is not None
+    )
+    if desenlace is Desenlace.MATADO:
+        raise EjecucionExpirada
+    raise HijoMuerto(proceso.exitcode)
