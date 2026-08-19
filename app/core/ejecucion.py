@@ -5,11 +5,13 @@ S2 (PR 2 de 4) embarcó la mitad de admisión: el semáforo perezoso, el gestor
 de contexto `admitir()` -- con la misma forma que `temporales.reservar()` --
 y el middleware ASGI `AdmisionDeBorde`, que es el único sitio de adquisición
 y el único sitio de liberación del slot en todo el repositorio (design.md
-§3). Esta entrega (S3, PR 3 de 4) agrega la **mitad de proceso**: los tres
-mensajes que cruzan el `Pipe`, el clasificador puro `clasificar_desenlace`,
-la jerarquía de fallas no-`TipoError` y la plomería genérica
-`ejecutar_aislado` (design.md §5-§7). Lo que falta -- `_ejecutar_en_hijo` y
-`ejecutar_modulo`, la composición delgada sobre `REGISTRY` -- llega en S4.
+§3). S3 (PR 3 de 4) agregó la **mitad de proceso**: los tres mensajes que
+cruzan el `Pipe`, el clasificador puro `clasificar_desenlace`, la jerarquía
+de fallas no-`TipoError` y la plomería genérica `ejecutar_aislado`
+(design.md §5-§7). Esta entrega (S4, PR 4 de 4) cierra el módulo con
+`_ejecutar_en_hijo` y `ejecutar_modulo`: la composición delgada sobre
+`REGISTRY` (Decisión bloqueada -- el hijo re-deriva su `Procesador` por
+`clave`, nunca recibe una instancia serializada; ver `app/core/interfaz.py`).
 
 El semáforo es perezoso (`@lru_cache(maxsize=1)`, igual que
 `obtener_configuracion`): importar este módulo no lee configuración y no
@@ -32,12 +34,14 @@ from __future__ import annotations
 import multiprocessing
 import threading
 import time
+import traceback
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
 from functools import lru_cache
+from multiprocessing.connection import Connection
 
 from fastapi import FastAPI
 from starlette.requests import Request
@@ -45,8 +49,9 @@ from starlette.responses import Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.configuracion import obtener_configuracion
-from app.core.errores import ErrorTipificado
-from app.core.tipos import ArchivoSalida
+from app.core.errores import ErrorClaveInexistente, ErrorTipificado
+from app.core.tipos import ArchivoEntrada, ArchivoSalida
+from app.registry import REGISTRY
 
 
 class ServicioSaturado(Exception):
@@ -303,3 +308,78 @@ def ejecutar_aislado(
     if desenlace is Desenlace.MATADO:
         raise EjecucionExpirada
     raise HijoMuerto(proceso.exitcode)
+
+
+# --- proceso: la composición delgada sobre REGISTRY (S4) ---------------------
+
+
+def _ejecutar_en_hijo(conexion: Connection, clave: str, entradas: list[ArchivoEntrada]) -> None:
+    """Objetivo del `Process` dedicado (design.md §7-§8).
+
+    Módulo-nivel y picklable por nombre calificado -- la precondición de
+    `spawn` sobre todo `target` (ADR 0012). No recibe nunca una instancia de
+    `Procesador`: solo `clave` (`str`) y las rutas ya envueltas en
+    `ArchivoEntrada` cruzan la frontera del proceso (Decisión bloqueada,
+    design.md §7 y §13 "Client-supplied `clave` reaching the child" -- es una
+    búsqueda en un `dict`, nunca un import por nombre ni una ruta).
+
+    El hijo re-importa el árbol de módulos de la aplicación (import normal de
+    `app.registry`, que este módulo ya importa a nivel de módulo) y busca su
+    propio `Procesador` en `REGISTRY[clave]`. Una ausencia -- el único
+    desenlace real hoy, con `REGISTRY` vacío hasta los ítems #12/#16 (V9) --
+    se tipifica como `ErrorClaveInexistente(causa="no_en_registry")`, el
+    mismo valor de `CausaDesincronizacion` que H-05 ya puso en el vocabulario.
+
+    Corre `validar` y, si no hay error, `procesar` -- ambos pasos en un solo
+    hijo (design.md §7: spawnear dos veces duplicaría el costo de reimportar
+    pandas por hijo, el mayor costo de la petición). Envía exactamente un
+    `MensajeDelHijo` y cierra la conexión sin importar por cuál de las tres
+    ramas salió.
+    """
+    try:
+        try:
+            procesador = REGISTRY[clave]
+        except KeyError:
+            raise ErrorClaveInexistente(clave_procesador=clave, causa="no_en_registry") from None
+
+        error = procesador.validar(entradas)
+        if error is not None:
+            conexion.send(ErrorDelHijo(error=error))
+            return
+
+        archivos = procesador.procesar(entradas)
+        conexion.send(SalidaDelHijo(archivos=archivos))
+    except ErrorTipificado as error:
+        conexion.send(ErrorDelHijo(error=error))
+    except Exception as exc:  # noqa: BLE001 - frontera del proceso: todo cruza tipificado
+        conexion.send(
+            ExcepcionDelHijo(
+                clase=type(exc).__name__, mensaje=str(exc), traza=traceback.format_exc()
+            )
+        )
+    finally:
+        conexion.close()
+
+
+def ejecutar_modulo(
+    *, clave: str, entradas: list[ArchivoEntrada], timeout: timedelta
+) -> list[ArchivoSalida]:
+    """Composición delgada sobre `ejecutar_aislado` (design.md §7).
+
+    Spawnea `_ejecutar_en_hijo` con `clave` y `entradas`, y traduce lo que
+    llegue: un `SalidaDelHijo` se devuelve como su lista de archivos; un
+    `ErrorDelHijo` se re-levanta tal cual -- el manejador de `ErrorTipificado`
+    (ítem #3) ya está registrado, así que no hace falta traducción nueva; un
+    `ExcepcionDelHijo` se traduce a `FalloDelModulo` (V7 -- el motivo cerrado
+    de `ContextoContenido` no tiene espacio para "el módulo se cayó", así que
+    esto no se fuerza a un `ErrorTipificado`). `EjecucionExpirada` y
+    `HijoMuerto` ya llegan levantadas por `ejecutar_aislado` y se propagan sin
+    traducir. El ítem #10 decide, con esas cuatro formas, la traducción HTTP
+    final; este módulo no la decide.
+    """
+    mensaje = ejecutar_aislado(_ejecutar_en_hijo, (clave, entradas), timeout=timeout)
+    if isinstance(mensaje, SalidaDelHijo):
+        return mensaje.archivos
+    if isinstance(mensaje, ErrorDelHijo):
+        raise mensaje.error
+    raise FalloDelModulo(clase=mensaje.clase, mensaje=mensaje.mensaje, traza=mensaje.traza)

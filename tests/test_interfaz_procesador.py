@@ -171,7 +171,12 @@ def test_interfaz_importa_sin_procesadores() -> None:
     import app.core.interfaz  # noqa: F401
 
 
-def test_docstring_registra_pregunta_abierta_del_item_8() -> None:
+def test_docstring_registra_la_resolucion_del_item_8() -> None:
+    """Ítem #8, S4: el caveat abierto quedó resuelto -- el hijo re-importa y
+    busca en `REGISTRY` por `clave`; ninguna instancia serializada cruza el
+    proceso (`procesador-interface` spec, MODIFIED Requirement)."""
     assert Procesador.__doc__ is not None
     assert "proceso hijo" in Procesador.__doc__
-    assert "re-deriva" in Procesador.__doc__
+    assert "re-importa" in Procesador.__doc__
+    assert "REGISTRY" in Procesador.__doc__
+    assert "CAVEAT ABIERTO" not in Procesador.__doc__

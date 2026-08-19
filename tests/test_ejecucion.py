@@ -1,13 +1,15 @@
-"""Pruebas de `app.core.ejecucion`, mitad de proceso (ítem #8, S3, design.md §5-§7).
+"""Pruebas de `app.core.ejecucion`, mitad de proceso (ítem #8, S3+S4, design.md §5-§8).
 
 Behaviourales, sin AST ni inspección estructural (TDD estricto deshabilitado).
 
-Presupuesto de pruebas que spawnean un hijo real: el diseño pide ≤6 (design.md
-§10) porque cada una paga un `spawn` real (~0.5-1.5s en Windows). Esta suite
-usa exactamente 6: éxito, excepción sin tipificar, error tipificado, timeout
-con kill real, `os._exit` anómalo, salida silenciosa -- más una que reutiliza
-el hijo anómalo para probar que la capacidad no queda atascada (comparte el
-mismo spawn, no agrega uno nuevo aparte del segundo hijo normal que prueba).
+Presupuesto de pruebas que spawnean un hijo real: el diseño pide ≤6 por
+entrega (design.md §10) porque cada una paga un `spawn` real (~0.5-1.5s en
+Windows). S3 usa 8 spawns reales sobre 7 funciones de prueba (éxito, excepción
+sin tipificar, error tipificado, timeout con kill real, `os._exit` anómalo,
+salida silenciosa, más dos que prueban que la capacidad no queda atascada).
+S4 agrega exactamente un spawn más: `ejecutar_modulo` contra el `REGISTRY`
+vacío de producción (tarea 4.4, V9) -- el único desenlace de hijo real
+disponible hoy, sin ningún gancho de prueba.
 
 `clasificar_desenlace` es pura, así que la tabla completa de design.md §6 --
 filas POSIX incluidas -- se prueba como datos, sin ningún proceso real: es la
@@ -32,9 +34,11 @@ from app.core.ejecucion import (
     admitir,
     clasificar_desenlace,
     ejecutar_aislado,
+    ejecutar_modulo,
     obtener_semaforo,
 )
-from app.core.errores import ErrorCantidad
+from app.core.errores import ErrorCantidad, ErrorClaveInexistente
+from app.core.interfaz import Procesador
 from tests.ayudas import hijos
 
 # El único directorio de trabajo que `hijo_normal` reporta: sin archivos.
@@ -158,3 +162,37 @@ class TestCapacidadNoQuedaAtascada:
         with admitir():
             resultado = ejecutar_aislado(hijos.hijo_normal, (), timeout=_TIMEOUT_HOLGADO)
         assert isinstance(resultado, SalidaDelHijo)
+
+
+class TestEjecutarModuloRegistryMiss:
+    """Tarea 4.4: `ejecutar_modulo` contra el `REGISTRY` de producción vacío
+    (V9) -- el único desenlace de hijo real hoy, sin ningún gancho de prueba
+    en código de producción: spawn real, import real del hijo, búsqueda real,
+    round-trip real del `__reduce__` de `ErrorClaveInexistente`."""
+
+    def test_clave_inexistente_cruza_intacta_desde_el_registry_vacio(self) -> None:
+        with pytest.raises(ErrorClaveInexistente) as excinfo:
+            ejecutar_modulo(
+                clave="clave-hostil-que-no-existe/../../etc",
+                entradas=[],
+                timeout=_TIMEOUT_HOLGADO,
+            )
+        assert excinfo.value.contexto == {
+            "clave_procesador": "clave-hostil-que-no-existe/../../etc",
+            "causa": "no_en_registry",
+        }
+
+
+class TestProcesadorDocstringResuelveElCaveat:
+    """Tarea 4.5: la resolución del caveat abierto queda registrada en el
+    docstring de `Procesador` (`procesador-interface` spec, MODIFIED
+    Requirement "Procesador's docstring records the child-instantiation
+    resolution")."""
+
+    def test_docstring_declara_la_decision_resuelta(self) -> None:
+        doc = Procesador.__doc__
+        assert doc is not None
+        assert "REGISTRY" in doc
+        assert "clave" in doc
+        assert "RESUELTO" in doc
+        assert "CAVEAT ABIERTO" not in doc

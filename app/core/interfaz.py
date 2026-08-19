@@ -30,11 +30,14 @@ class Procesador(ABC):
     Ambos métodos trabajan siempre con listas: un solo camino de código, sin
     ramas por cardinalidad (ADR 0006).
 
-    CAVEAT ABIERTO — ítem #8, `core/ejecucion.py`: ningún documento define si el
-    proceso hijo re-deriva la instancia (re-import más búsqueda en el registry)
-    o recibe una instancia serializada. Lo que sí está fijado es que solo cruzan
-    rutas y escalares, nunca bytes de archivo (ADR 0012). Quien implemente
-    `core/ejecucion.py` decide esto y actualiza esta nota.
+    RESUELTO — ítem #8, `core/ejecucion.py` (S4): el proceso hijo re-importa el
+    árbol de módulos de la aplicación y busca su propia instancia en
+    `REGISTRY` por `clave` (`app/core/ejecucion.py::_ejecutar_en_hijo`). Ninguna
+    instancia de `Procesador` serializada cruza jamás la frontera del proceso:
+    solo `clave` (`str`) y rutas de archivo lo hacen (ADR 0012). Esto obliga a
+    que todo módulo de procesador concreto sea importable sin efectos de
+    importación -- la misma precondición que `spawn` ya impone sobre
+    `core/ejecucion.py`.
 
     `clave` es una anotación sin valor: ni mypy ni ABCMeta obligan a la subclase
     a definirla (design.md §0, V1/V2). Cada procesador DEBE fijarla y su valor
