@@ -27,6 +27,7 @@ señalando ese nombre cuando el espejo real se implemente.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from types import MappingProxyType
 
@@ -99,3 +100,27 @@ def obtener_contrato(clave_procesador: str) -> ContratoProcesador | None:
     contrato sin límites. No se accede a red ni a base de datos alguna.
     """
     return _TABLA_CONTRATOS.get(clave_procesador)
+
+
+def obtener_tabla_contratos() -> Mapping[str, ContratoProcesador]:
+    """Devuelve la tabla de contratos completa, de sólo lectura.
+
+    Existe porque `obtener_contrato` resuelve **una** clave y el chequeo de
+    arranque del ítem #11 (`app/coherencia.py`) necesita justo lo contrario:
+    recorrer todas las filas para encontrar las que no tienen entrada en
+    `app.registry.REGISTRY`. Una pregunta por clave no puede contestar eso.
+
+    Es un accesor y no la exportación del nombre `_TABLA_CONTRATOS` a
+    propósito, por dos razones. La primera es la misma que sostiene a
+    `obtener_contrato`: cuando el ítem #5 traiga el lector real, esta función
+    pasa a hacer un `SELECT` del catálogo sin que cambie ninguna firma ni
+    ningún llamador. La segunda es operativa: varias pruebas sustituyen la
+    tabla con `monkeypatch.setattr(contrato_modulo, "_TABLA_CONTRATOS", ...)`,
+    así que el global se lee **en cada llamada** —nunca se captura al
+    importar— y esas sustituciones siguen valiendo para quien llame acá.
+
+    El tipo de retorno es `Mapping`, no `dict`: quien llama enumera y consulta,
+    nunca escribe. `MappingProxyType` ya lo impide en tiempo de ejecución;
+    `Mapping` lo dice también en la firma.
+    """
+    return _TABLA_CONTRATOS

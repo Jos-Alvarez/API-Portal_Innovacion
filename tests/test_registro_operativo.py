@@ -577,9 +577,6 @@ from app.core.contrato import CONTRATO_POR_DEFECTO
 from app.core.tipos import ArchivoSalida
 from app.main import app as aplicacion
 
-contrato_modulo._TABLA_CONTRATOS = MappingProxyType({{"visible": CONTRATO_POR_DEFECTO}})
-
-
 def _modulo_falso(*, clave, entradas, timeout):
     return [
         ArchivoSalida(
@@ -595,6 +592,13 @@ pipeline.ejecutar_modulo = _modulo_falso
 sumidero = io.StringIO()
 with redirect_stdout(sumidero):
     with TestClient(aplicacion) as cliente:
+        # Se sustituye la tabla DENTRO del `with`, no antes: el item #11
+        # contrasta `REGISTRY` contra los contratos durante el lifespan, y una
+        # tabla que solo tuviera "visible" dejaria a los dos passthrough
+        # registrados sin fila -- el arranque fallaria, que es exactamente lo
+        # que ese chequeo tiene que hacer. Acá se parchea una vez arrancado,
+        # igual que en las pruebas en proceso de este mismo archivo.
+        contrato_modulo._TABLA_CONTRATOS = MappingProxyType({{"visible": CONTRATO_POR_DEFECTO}})
         respuesta = cliente.post(
             "/interno/procesadores/visible",
             files={{"archivos": ("informe.xlsx", b"abcde", "application/octet-stream")}},

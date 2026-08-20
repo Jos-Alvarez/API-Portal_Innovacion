@@ -9,10 +9,14 @@ un error de configuración.
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import APIRouter, FastAPI
 from starlette.middleware import Middleware
 from starlette.routing import Mount
 
+from app.coherencia import contrastar_registry_contra_contratos
 from app.core.ejecucion import AdmisionDeBorde, registrar_manejador_503
 from app.core.errores import registrar_manejador_errores
 from app.core.fallos_http import registrar_manejadores_de_fallo
@@ -22,6 +26,29 @@ from app.core.temporales import ciclo_de_vida
 from app.core.validacion_http import registrar_manejador_validacion
 from app.recepcion import router_recepcion
 from app.salud import router_salud
+
+
+@asynccontextmanager
+async def _arranque(app: FastAPI) -> AsyncIterator[None]:
+    """Lifespan de la app: `ciclo_de_vida` más el chequeo del ítem #11.
+
+    `FastAPI(lifespan=...)` acepta **uno solo**, así que el chequeo se compone
+    envolviendo `ciclo_de_vida` en vez de editarlo: los temporales y el
+    barrendero no tienen nada que ver con la coherencia del registry, y
+    mezclarlos en un mismo módulo los ataría sin motivo.
+
+    El chequeo va **dentro** del `async with`, nunca antes: `ciclo_de_vida`
+    llama primero a `obtener_configuracion()` y esa precedencia es una regla
+    del ítem #1 — un token faltante falla siempre primero, para que ningún
+    otro problema de arranque pueda enmascarar un error de configuración.
+
+    Tampoco va en el cuerpo de `crear_app()`: eso lo convertiría en trabajo de
+    construcción de la app en vez de trabajo de arranque, y lo dejaría corriendo
+    incluso para un `TestClient` que nunca levanta el lifespan.
+    """
+    async with ciclo_de_vida(app):
+        contrastar_registry_contra_contratos()  # el chequeo de configuración ya corrió
+        yield
 
 
 def crear_app() -> FastAPI:
@@ -35,13 +62,16 @@ def crear_app() -> FastAPI:
     # entero sería un no-op: uvicorn no pone handler en la raíz ni le fija
     # nivel, así que un `app.*` en INFO no llegaría a ninguna parte.
     configurar_logging()
-    # `ciclo_de_vida` (app/core/temporales.py) llama primero a
-    # `obtener_configuracion()` -- 1. falla cerrado; ADR 0012 paso 2 --,
-    # antes de tocar la raíz de temporales o el barrendero.
-    app = FastAPI(lifespan=ciclo_de_vida)
-    # costura #5:  motor = obtener_motor()  (dentro de app.core.temporales.ciclo_de_vida)
-    # costura #11: contrastar_registry_contra_bd(motor, registry)
-    # costura: cierre ordenado del motor (ítem #5)
+    # `_arranque` envuelve a `ciclo_de_vida` (app/core/temporales.py), que
+    # llama primero a `obtener_configuracion()` -- 1. falla cerrado; ADR 0012
+    # paso 2 --, antes de tocar la raíz de temporales o el barrendero; el
+    # chequeo del ítem #11 corre después, ya dentro del lifespan.
+    app = FastAPI(lifespan=_arranque)
+    # El ítem #11 cerró su costura: `contrastar_registry_contra_contratos()`
+    # (app/coherencia.py) corre dentro de `_arranque`. No recibe un motor y no
+    # lo recibirá mientras dure la desviación del ítem #5: no hay base de datos
+    # ni conexión que abrir, así que tampoco quedan pendientes `obtener_motor()`
+    # ni su cierre ordenado. Las tres costuras vuelven juntas con el lector real.
     app.include_router(router_salud)  # público, sin dependencias
     registrar_manejador_401(app)  # ítem #2, cableado en producción (design.md §3)
     registrar_manejador_validacion(app)  # ítem #6, obligación 2 (design.md §4)
