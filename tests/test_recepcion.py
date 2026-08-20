@@ -1,11 +1,14 @@
 """Pruebas de `app.recepcion`: la ruta de recepción con contrato aplicado.
 
 Ítem #6 embarcó esta ruta; el ítem #7 (slice B) le invierte el orden — el
-contrato pasa a ser precondición de la copia, no postcondición. Eso obliga a
+contrato pasa a ser precondición de la copia, no postcondición. Eso obligó a
 **reestructurar** este módulo, no sólo a extenderlo: con `_TABLA_CONTRATOS`
-vacía, subir la resolución del contrato por encima del bucle hace que ninguna
-petición llegue a escribir nada en producción. Las tres pruebas del ítem #6 que
-afirmaban archivos en disco se reconstruyen sobre un contrato inyectado.
+vacía, subir la resolución del contrato por encima del bucle hacía que ninguna
+petición llegara a escribir nada en producción. Las tres pruebas del ítem #6
+que afirmaban archivos en disco se reconstruyen sobre un contrato inyectado, y
+así siguen: este módulo prueba la ruta parametrizada de andamiaje con una clave
+arbitraria, no los procesadores que el ítem #12 dio de alta (ésos viven en
+`tests/test_procesador_passthrough.py`, contra el contrato real).
 
 El ítem #10 cerró la costura que quedaba al final de la fase 2. Mientras
 estuvo abierta, `assert respuesta.status_code == 500` significaba en este
@@ -122,12 +125,13 @@ def modulo_falso(monkeypatch: pytest.MonkeyPatch) -> InstalarModulo:
     `app.core.pipeline`, sin spawnear ningún hijo.
 
     Parchear `app.registry.REGISTRY` no serviría: `spawn` re-importa
-    `app.registry` en el hijo, que vería siempre la tabla vacía de producción.
-    Y cada spawn real cuesta ~0.5-1.5s en Windows contra un presupuesto de ≤6
-    por entrega (`tests/test_ejecucion.py`); el único de esta entrega está en
-    `TestPipelineCompletoConHijoReal`. Todo lo demás del camino -- el contrato,
-    la copia acotada, `empaquetar`, la `FileResponse` y la limpieza cedida --
-    corre de verdad.
+    `app.registry` en el hijo, que vería siempre la tabla de producción y
+    nunca el parche del proceso padre. Y cada spawn real cuesta ~0.5-1.5s en
+    Windows contra un presupuesto de ≤6 por entrega
+    (`tests/test_ejecucion.py`); el único de este módulo está en
+    `TestPipelineCompletoConHijoReal`. Todo lo demás del camino -- el
+    contrato, la copia acotada, `empaquetar`, la `FileResponse` y la limpieza
+    cedida -- corre de verdad.
     """
 
     def _instalar(fabrica: FabricaDeSalidas) -> None:
@@ -733,14 +737,16 @@ class TestPipelineCompletoConHijoReal:
     """El único spawn real de esta entrega (presupuesto ≤6, ver
     `tests/test_ejecucion.py`): la ruta entera sin un solo sustituto.
 
-    Con `REGISTRY` vacío -- el estado de producción hasta los ítems #12/#16 --
-    el hijo real tipifica la ausencia y el error cruza el `Pipe` intacto vía
+    La clave usada (`"cualquiera"`) no está en `REGISTRY` -- lo estuvo por
+    estar el registro vacío, y desde el ítem #12 lo sigue estando porque no
+    coincide con ninguno de los procesadores dados de alta. El hijo real
+    tipifica la ausencia y el error cruza el `Pipe` intacto vía
     `ErrorTipificado.__reduce__`. Es la prueba de que la costura quedó cerrada
     de punta a punta: contrato, copia, `spawn`, `Pipe`, manejador tipificado y
     limpieza del temporal, sin ningún gancho de prueba en producción.
     """
 
-    def test_registry_vacio_llega_al_cliente_como_clave_inexistente(
+    def test_clave_ausente_del_registry_llega_al_cliente_como_clave_inexistente(
         self,
         cliente_de_prueba: TestClient,
         token_sentinela: str,

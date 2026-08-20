@@ -2,13 +2,14 @@
 
 **Desviación deliberada de ADR 0006, marcada a propósito.** ADR 0006 decide
 "una ruta interna por procesador" y rechaza explícitamente "una sola ruta
-genérica". Esa decisión presume al menos un procesador para nombrar; hoy no
-existe ninguno (`app.core.contrato.obtener_contrato` devuelve `None` para
-toda clave). Este módulo es por lo tanto un andamiaje temporal de recepción:
-una única ruta parametrizada por `clave_procesador`, no una decisión
-arquitectónica que compita con ADR 0006. No enmienda ni reemplaza esa
-decisión; los ítems #12/#16 la sustituyen por las rutas literales por
-procesador que ADR 0011 ubica bajo `app/procesadores/{clave}/`. Ver también
+genérica". Esa decisión presumía al menos un procesador para nombrar, y
+cuando este módulo se escribió no existía ninguno. Este módulo es por lo
+tanto un andamiaje temporal de recepción: una única ruta parametrizada por
+`clave_procesador`, no una decisión arquitectónica que compita con ADR 0006.
+No enmienda ni reemplaza esa decisión. El ítem #12 dio de alta los dos
+primeros procesadores (`passthrough`, `passthrough_multi`) **sin** tocar esta
+ruta, a propósito: sustituirla por las rutas cáscara literales que ADR 0011
+ubica bajo `app/procesadores/{clave}/` es un ítem aparte. Ver también
 adrs/0020, sección Consecuencias.
 
 Módulo de nivel superior siguiendo el precedente ya embarcado de
@@ -127,12 +128,13 @@ async def recibir(
       `finally: reserva.limpiar()` del ítem #6, sin cambios: `temporales.py` no
       se toca en una sola línea.
 
-    Consecuencia honesta de que `obtener_contrato` devuelva `None` para toda
-    clave hoy: al subir la resolución del contrato por encima de la copia,
-    **ninguna subida llega a disco en producción** — toda petición muere en
-    `ErrorClaveInexistente` antes de la fase 2. Es el comportamiento correcto
-    (una clave desconocida no debe costar una escritura), pero la evidencia de
-    recepción del ítem #6 pasa a depender de un contrato inyectado en pruebas.
+    Mientras `_TABLA_CONTRATOS` estuvo vacía, la consecuencia honesta de subir
+    la resolución del contrato por encima de la copia era que **ninguna subida
+    llegaba a disco en producción**: toda petición moría en
+    `ErrorClaveInexistente` antes de la fase 2. El ítem #12 dio de alta las dos
+    primeras filas, así que ese tramo ya se recorre de verdad con una clave
+    conocida. La regla no cambió y sigue siendo la correcta: una clave
+    desconocida no cuesta ni un `mkdtemp` ni un byte.
 
     El ítem #10 cerró la costura que quedaba al final de la fase 2: donde
     había un `raise NotImplementedError` ahora corren los pasos 6-8

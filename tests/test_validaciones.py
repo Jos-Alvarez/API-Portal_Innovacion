@@ -2,8 +2,8 @@
 
 Behaviourales y en aislamiento: contratos construidos a mano, sin HTTP y sin
 disco salvo en los casos de ZIP. Eso es posible exactamente porque el módulo
-recibe primitivos y no tipos de Starlette (ADR 0021) — `_TABLA_CONTRATOS` sigue
-vacía, así que no hay contrato real que resolver.
+recibe primitivos y no tipos de Starlette (ADR 0021): ninguna de estas pruebas
+depende de las filas que `_TABLA_CONTRATOS` traiga en cada momento.
 
 Convención de límites bajo prueba: un valor igual al límite se acepta; recién
 el siguiente rechaza. Cada rechazo se comprueba sobre el `contexto` entero, no

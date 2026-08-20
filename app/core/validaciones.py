@@ -9,9 +9,9 @@ de acá es más barata que la escritura que protege, y todas menos
 
 Reciben primitivos (`str`, `int`) más el contrato; **nunca** un `UploadFile` ni
 ningún otro tipo de Starlette. La ruta extrae, el núcleo compara. Así este
-módulo es ejercitable con contratos construidos a mano —imprescindible,
-porque `_TABLA_CONTRATOS` está vacía— y ningún llamador futuro no-multipart
-(ítem #10) arrastra Starlette consigo.
+módulo es ejercitable con contratos construidos a mano —sin depender de las
+filas que `_TABLA_CONTRATOS` traiga en cada momento— y ningún llamador futuro
+no-multipart (ítem #10) arrastra Starlette consigo.
 
 Los límites se comparan con `>`: un valor exactamente igual al límite se
 acepta; recién el siguiente byte (o archivo) rechaza.
@@ -135,7 +135,9 @@ def validar_tamano_descomprimido(
       corresponde.
 
     La suma es **por archivo**, no por lote: ésa es la forma de una bomba ZIP.
-    Hoy `entradas_max = 1` hace que lote y archivo sean lo mismo.
+    Con una fila de `entradas_max = 1` lote y archivo coinciden; con la fila
+    multi-archivo del ítem #12 ya no, y la comprobación sigue siendo por
+    archivo a propósito.
     """
     if not zipfile.is_zipfile(entrada.ruta_temporal):
         return

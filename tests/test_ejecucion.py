@@ -7,9 +7,12 @@ entrega (design.md §10) porque cada una paga un `spawn` real (~0.5-1.5s en
 Windows). S3 usa 8 spawns reales sobre 7 funciones de prueba (éxito, excepción
 sin tipificar, error tipificado, timeout con kill real, `os._exit` anómalo,
 salida silenciosa, más dos que prueban que la capacidad no queda atascada).
-S4 agrega exactamente un spawn más: `ejecutar_modulo` contra el `REGISTRY`
-vacío de producción (tarea 4.4, V9) -- el único desenlace de hijo real
-disponible hoy, sin ningún gancho de prueba.
+S4 agrega exactamente un spawn más: `ejecutar_modulo` contra una clave que
+el `REGISTRY` de producción no tiene (tarea 4.4, V9), sin ningún gancho de
+prueba. Cuando se escribió, ese registro estaba vacío y era el único
+desenlace de hijo real disponible; el ítem #12 le dio de alta procesadores
+reales, y la prueba sigue valiendo porque su clave sigue sin estar entre
+ellos.
 
 `clasificar_desenlace` es pura, así que la tabla completa de design.md §6 --
 filas POSIX incluidas -- se prueba como datos, sin ningún proceso real: es la
@@ -165,12 +168,13 @@ class TestCapacidadNoQuedaAtascada:
 
 
 class TestEjecutarModuloRegistryMiss:
-    """Tarea 4.4: `ejecutar_modulo` contra el `REGISTRY` de producción vacío
-    (V9) -- el único desenlace de hijo real hoy, sin ningún gancho de prueba
-    en código de producción: spawn real, import real del hijo, búsqueda real,
-    round-trip real del `__reduce__` de `ErrorClaveInexistente`."""
+    """Tarea 4.4: `ejecutar_modulo` contra una clave ausente del `REGISTRY`
+    de producción (V9), sin ningún gancho de prueba en código de producción:
+    spawn real, import real del hijo, búsqueda real, round-trip real del
+    `__reduce__` de `ErrorClaveInexistente`. La clave elegida es hostil y no
+    coincide con ninguna de las que el ítem #12 dio de alta."""
 
-    def test_clave_inexistente_cruza_intacta_desde_el_registry_vacio(self) -> None:
+    def test_clave_inexistente_cruza_intacta_desde_el_registry(self) -> None:
         with pytest.raises(ErrorClaveInexistente) as excinfo:
             ejecutar_modulo(
                 clave="clave-hostil-que-no-existe/../../etc",

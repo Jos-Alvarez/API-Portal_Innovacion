@@ -325,10 +325,11 @@ def _ejecutar_en_hijo(conexion: Connection, clave: str, entradas: list[ArchivoEn
 
     El hijo re-importa el árbol de módulos de la aplicación (import normal de
     `app.registry`, que este módulo ya importa a nivel de módulo) y busca su
-    propio `Procesador` en `REGISTRY[clave]`. Una ausencia -- el único
-    desenlace real hoy, con `REGISTRY` vacío hasta los ítems #12/#16 (V9) --
-    se tipifica como `ErrorClaveInexistente(causa="no_en_registry")`, el
-    mismo valor de `CausaDesincronizacion` que H-05 ya puso en el vocabulario.
+    propio `Procesador` en `REGISTRY[clave]`. Una ausencia -- desde el ítem
+    #12 el registro ya no está vacío, así que ausencia significa clave
+    desconocida y no "todavía no hay ninguno" -- se tipifica como
+    `ErrorClaveInexistente(causa="no_en_registry")`, el mismo valor de
+    `CausaDesincronizacion` que H-05 ya puso en el vocabulario.
 
     Corre `validar` y, si no hay error, `procesar` -- ambos pasos en un solo
     hijo (design.md §7: spawnear dos veces duplicaría el costo de reimportar

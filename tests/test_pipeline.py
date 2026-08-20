@@ -11,7 +11,8 @@ entre este módulo y la mitad de proceso del ítem #8. `empaquetar` corre de
 verdad en todas estas pruebas, sin sustituto.
 
 Parchear `app.registry.REGISTRY` no sería una alternativa: `spawn` re-importa
-`app.registry` en el hijo, que vería siempre la tabla vacía de producción.
+`app.registry` en el hijo, que vería siempre la tabla de producción y nunca el
+parche del proceso padre.
 """
 
 from __future__ import annotations

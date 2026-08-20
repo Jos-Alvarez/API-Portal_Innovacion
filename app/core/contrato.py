@@ -27,7 +27,7 @@ señalando ese nombre cuando el espejo real se implemente.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from types import MappingProxyType
 
 
@@ -55,12 +55,39 @@ CONTRATO_POR_DEFECTO: ContratoProcesador = ContratoProcesador(
     activo=True,
 )
 
+# Formatos del passthrough, revisando la elección conservadora de arriba.
+# `CONTRATO_POR_DEFECTO` acepta sólo `xlsx` porque el procesador real que se
+# tenía en mente (ítem #16) recibe un Excel; el passthrough no mira el
+# contenido de nada, y exigirle un `.xlsx` lo volvería imposible de ejercitar
+# con un archivo trivial — justo lo contrario de su razón de existir (probar
+# la tubería navegador → portal → FastAPI → descarga). `CONTRATO_POR_DEFECTO`
+# no se toca: estas filas se construyen a partir de él con `replace`.
+_FORMATOS_DEL_PASSTHROUGH: tuple[str, ...] = ("csv", "txt", "xlsx")
+
 # Tabla en código que sustituye la fila `procesador` de SQL Server (ADR 0013).
-# Vacía a propósito: ningún procesador existe todavía (los ítems #12/#16 los
-# añaden, igual que `app.registry.REGISTRY`). Una entrada futura se
-# construiría a partir de `CONTRATO_POR_DEFECTO`, editado según ese
+# El ítem #12 le dio de alta sus dos primeras filas, las de los procesadores
+# passthrough de `app.registry.REGISTRY`. Difieren **sólo** en la cardinalidad:
+# ADR 0006 fija que ése es un atributo de la fila y no del módulo, así que una
+# única clase `Passthrough` sirve a ambas claves. Una entrada futura se
+# construye igual, a partir de `CONTRATO_POR_DEFECTO`, editado según ese
 # procesador.
-_TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType({})
+#
+# `tamano_max_total_bytes` se deja en el valor por defecto también para la
+# variante multi: el techo del lote no crece porque el lote tenga más archivos.
+_TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType(
+    {
+        "passthrough": replace(
+            CONTRATO_POR_DEFECTO,
+            formatos_aceptados=_FORMATOS_DEL_PASSTHROUGH,
+        ),
+        "passthrough_multi": replace(
+            CONTRATO_POR_DEFECTO,
+            entradas_min=2,
+            entradas_max=5,
+            formatos_aceptados=_FORMATOS_DEL_PASSTHROUGH,
+        ),
+    }
+)
 
 
 def obtener_contrato(clave_procesador: str) -> ContratoProcesador | None:

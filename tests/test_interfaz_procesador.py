@@ -3,7 +3,9 @@
 Behaviourales, sin AST ni inspección estructural (design.md, metodología:
 TDD estricto deshabilitado). Un fake de sólo pruebas prueba la interfaz;
 nunca se registra nada en `app.registry.REGISTRY` — mutar un global de
-módulo se filtraría entre pruebas (design.md §6).
+módulo se filtraría entre pruebas (design.md §6). Desde el ítem #12 ese
+diccionario ya no está vacío en producción, así que acá sólo se afirma su
+contrato de tipo, nunca su contenido.
 """
 
 from __future__ import annotations
@@ -163,8 +165,13 @@ def test_instancia_es_asignable_a_dict_local_tipado() -> None:
     assert registro_local[procesador.clave] is procesador
 
 
-def test_registry_importa_vacio() -> None:
-    assert REGISTRY == {}
+def test_registry_expone_solo_procesadores_tipados() -> None:
+    """El ítem #12 le dio de alta sus primeras entradas, así que la
+    afirmación de que importa vacío ya no es cierta. Lo que sigue siendo del
+    ítem #4 es el contrato de tipo del diccionario; la consistencia
+    llave <-> `clave` la guarda `tests/test_procesador_passthrough.py`."""
+    assert all(isinstance(llave, str) for llave in REGISTRY)
+    assert all(isinstance(procesador, Procesador) for procesador in REGISTRY.values())
 
 
 def test_interfaz_importa_sin_procesadores() -> None:
