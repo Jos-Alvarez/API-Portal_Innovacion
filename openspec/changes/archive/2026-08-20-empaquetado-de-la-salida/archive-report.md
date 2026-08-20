@@ -123,7 +123,20 @@ Per sdd-archive skill §42–§62 (Final-State Authority hierarchy):
 
 ### Unblocking Statement
 
-**Item #10 (pipeline composition) is NOT yet unblocked by this closure.** `BACKLOG.md` lists item #10 as depending on #4, #5, #6, #7, #8 **and #9**. This archive closes one of six preconditions. What #9 enables is the HTTP layer's ability to respond with a single `ArchivoSalida` wrapping zero/one/many module outputs.
+**Item #10 (pipeline composition) IS unblocked by this closure — it was the last missing precondition.** `BACKLOG.md` lists item #10 as depending on #4, #5, #6, #7, #8 **and #9**. Every one of those six is now archived, verified by mapping each archive folder back to its backlog item:
+
+| Item | Archive folder |
+|---|---|
+| #4 — Interfaz `Procesador` y registry | `2026-08-18-interfaz-procesador-y-registry/` |
+| #5 — Espejo de SQL Server (**deviated**) | `2026-08-18-contrato-estatico-sin-base-de-datos/` |
+| #6 — Recepción y ciclo de vida de temporales | `2026-08-18-recepcion-y-ciclo-de-vida-de-temporales/` |
+| #7 — Validaciones de contrato y defensa de memoria | `2026-08-19-validaciones-de-contrato-y-defensa-de-memoria/` |
+| #8 — Admisión acotada y proceso dedicado | `2026-08-19-admision-acotada-y-proceso-dedicado/` |
+| #9 — Empaquetado de la salida | `2026-08-20-empaquetado-de-la-salida/` (this archive) |
+
+**One caveat on that green light**: item #5 shipped **deviated**. There is no SQL Server mirror; the contract lives in code at `app/core/contrato.py` (`CONTRATO_POR_DEFECTO` plus `_TABLA_CONTRATOS`, which is still empty). Item #10 can start, but it composes over that deviated substrate, not over the ADR 0013 design as originally specified. Item #11 (registry ↔ database startup check) inherits the same caveat more directly.
+
+What #9 contributes to #10 is step 8: turning zero, one, or many module outputs into the single `ArchivoSalida` the HTTP layer can return.
 
 **#9 itself had only two dependencies**: #3 (typed errors, archived 2026-08-18) and #6 (temp files, archived 2026-08-18). Both shipped well before this archive.
 
@@ -158,7 +171,7 @@ Per sdd-archive skill §42–§62 (Final-State Authority hierarchy):
 
 **Unblocking notes**:
 - Item #5 (contrato.py) was deviated in the original proposal (no SQL Server; the contract lives in code at `app/core/contrato.py`) — no SQL schema changes in this archive
-- Item #9 itself unblocks no later items alone; all six preconditions (#3, #4, #5, #6, #7, #8, #9) must complete before #10 can start
+- Item #9 was the last of item #10's six preconditions (#4, #5, #6, #7, #8, #9); with this archive, **item #10 is unblocked** — subject to the item #5 deviation noted in the Unblocking Statement above
 - Item #12/#14/#16/#17 inherit the same pattern: bounded module execution with admitted output, safe for future processor registration
 
 ## Archive Contents Verified
