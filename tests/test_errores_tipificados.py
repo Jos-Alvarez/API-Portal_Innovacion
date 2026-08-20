@@ -42,6 +42,7 @@ _CASOS: Final[Mapping[str, ErrorTipificado]] = {
     ),
     "contenido_columna": ErrorContenido.columna_faltante(archivo="enero.xlsx", columna="Fecha"),
     "contenido_cero_filas": ErrorContenido.cero_filas(archivo="enero.xlsx"),
+    "contenido_sin_salidas": ErrorContenido.sin_salidas(),
     "cantidad": ErrorCantidad(minimo=1, maximo=2, recibido=5),
     "clave_fila": ErrorClaveInexistente(clave_procesador="contado_carga", causa="fila_ausente"),
     "clave_desync": ErrorClaveInexistente(clave_procesador="contado_carga", causa="no_en_registry"),
@@ -102,6 +103,10 @@ _CUERPOS_ESPERADOS: Final[Mapping[str, tuple[int, dict[str, object]]]] = {
                 "columna": None,
             },
         },
+    ),
+    "contenido_sin_salidas": (
+        422,
+        {"tipo": "contenido", "contexto": {"motivo": "sin_salidas"}},
     ),
     "cantidad": (
         422,
@@ -249,6 +254,10 @@ def test_todos_los_tipos_tienen_estado_y_caso() -> None:
 
 def test_cero_filas_deja_columna_en_none() -> None:
     error = ErrorContenido.cero_filas(archivo="marzo.xlsx")
+    # El discriminante `motivo` narrows la unión hacia `ContextoContenido`
+    # (mypy V6 checkpoint, ADR 0023): sin esta guarda, indexar "columna" no
+    # typechecka contra `ContextoContenido | ContextoSinSalidas`.
+    assert error.contexto["motivo"] == "cero_filas"
     assert error.contexto["columna"] is None
 
 
@@ -290,6 +299,35 @@ class TestDosFormasDeTamano:
         total = ErrorTamano.total(archivos=["enero.xlsx"], limite_bytes=100, recibido_bytes=101)
         assert isinstance(total, ErrorTamano)
         assert isinstance(total, ErrorTipificado)
+
+
+class TestDosFormasDeContenido:
+    """La unión crece una segunda vez, el enum no (ADR 0023)."""
+
+    def test_cero_filas_conserva_la_forma_verbatim_de_adr_0014(self) -> None:
+        error = ErrorContenido.cero_filas(archivo="marzo.xlsx")
+        assert set(error.contexto) == {"archivo", "motivo", "columna"}
+        # Narrowing por el discriminante `motivo` -- ver nota en
+        # `test_cero_filas_deja_columna_en_none`.
+        assert error.contexto["motivo"] == "cero_filas"
+        assert error.contexto["columna"] is None
+
+    def test_sin_salidas_usa_la_forma_hermana_sin_archivo(self) -> None:
+        error = ErrorContenido.sin_salidas()
+        assert set(error.contexto) == {"motivo"}
+        assert "archivo" not in error.contexto
+        assert error.contexto["motivo"] == "sin_salidas"
+
+    def test_ambas_formas_comparten_tipo_y_estado(self) -> None:
+        con_archivo = ErrorContenido.cero_filas(archivo="marzo.xlsx")
+        sin_archivo = ErrorContenido.sin_salidas()
+        assert con_archivo.tipo is sin_archivo.tipo is TipoError.CONTENIDO
+        assert _ESTADO_HTTP[con_archivo.tipo] == _ESTADO_HTTP[sin_archivo.tipo] == 422
+
+    def test_sin_salidas_es_la_misma_clase_de_excepcion(self) -> None:
+        error = ErrorContenido.sin_salidas()
+        assert isinstance(error, ErrorContenido)
+        assert isinstance(error, ErrorTipificado)
 
 
 class TestFormaDeContexto:

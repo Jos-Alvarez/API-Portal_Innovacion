@@ -72,6 +72,18 @@ class ContextoContenido(TypedDict):
     columna: str | None
 
 
+class ContextoSinSalidas(TypedDict):
+    """Cero salidas del módulo: sin archivo culpable (ADR 0023).
+
+    Hermano de `ContextoContenido`, no una ampliación suya, mismo patrón que
+    `ContextoTamanoTotal` frente a `ContextoTamano` (ADR 0021). El empaquetado
+    sostiene una lista vacía de `ArchivoSalida` en el punto de falla y no
+    tiene ningún nombre de archivo en alcance.
+    """
+
+    motivo: Literal["sin_salidas"]
+
+
 class ContextoCantidad(TypedDict):
     minimo: int
     maximo: int
@@ -94,6 +106,7 @@ Contexto = (
     | ContextoTamano
     | ContextoTamanoTotal
     | ContextoContenido
+    | ContextoSinSalidas
     | ContextoCantidad
     | ContextoClaveInexistente
 )
@@ -182,8 +195,15 @@ class ErrorTamano(ErrorTipificado):
 
 
 class ErrorContenido(ErrorTipificado):
+    """Un solo tipo (`TipoError.CONTENIDO`) con dos formas de contexto (ADR 0023).
+
+    `__init__` conserva sin cambios la forma que ADR 0014 fija para el caso
+    con archivo culpable. `sin_salidas()` construye la forma hermana sin
+    argumentos, siguiendo el patrón ya embarcado de `ErrorTamano.total()`.
+    """
+
     tipo = TipoError.CONTENIDO
-    contexto: ContextoContenido
+    contexto: ContextoContenido | ContextoSinSalidas
 
     def __init__(
         self,
@@ -202,6 +222,14 @@ class ErrorContenido(ErrorTipificado):
     @classmethod
     def cero_filas(cls, *, archivo: str) -> ErrorContenido:
         return cls(archivo=archivo, motivo="cero_filas", columna=None)
+
+    @classmethod
+    def sin_salidas(cls) -> ErrorContenido:
+        """Cero salidas del módulo de empaquetado: sin `archivo` que reportar."""
+        error = cls.__new__(cls)
+        Exception.__init__(error)
+        error.contexto = ContextoSinSalidas(motivo="sin_salidas")
+        return error
 
 
 class ErrorCantidad(ErrorTipificado):
