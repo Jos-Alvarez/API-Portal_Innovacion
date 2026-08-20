@@ -36,6 +36,18 @@ class TestEjecucionesMax:
         with pytest.raises(ConfiguracionInvalida):
             obtener_configuracion()
 
+    def test_no_numerico_falla(self, token_sentinela: str, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Un valor no numérico falla el arranque, no cae al default.
+
+        La spec nombra este caso entre los valores inválidos: "ausente" y
+        "presente pero ilegible" tienen que terminar distinto, porque
+        `EJECUCIONES_MAX=dos` es un despliegue mal configurado, no uno que
+        haya elegido el placeholder.
+        """
+        monkeypatch.setenv("EJECUCIONES_MAX", "dos")
+        with pytest.raises(ConfiguracionInvalida):
+            obtener_configuracion()
+
     def test_valor_positivo_arranca(
         self, token_sentinela: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
