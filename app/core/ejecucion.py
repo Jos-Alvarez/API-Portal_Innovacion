@@ -50,6 +50,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.core.configuracion import obtener_configuracion
 from app.core.errores import ErrorClaveInexistente, ErrorTipificado
+from app.core.registro import registrar_saturacion
 from app.core.tipos import ArchivoEntrada, ArchivoSalida
 from app.registry import REGISTRY
 
@@ -124,6 +125,15 @@ class AdmisionDeBorde:
     cliente. Todos esos casos son, para este middleware, simplemente
     retornos o excepciones de `await self.app(...)`; el `finally` del
     `@contextmanager` los cubre a todos por igual (design.md §3).
+
+    El ítem #14 agrega acá —y **no** dentro de `admitir()`— la línea de log
+    del rechazo por saturación. `admitir()` es un gestor de contexto genérico
+    que las pruebas unitarias invocan directamente, sin scope y sin ruta; el
+    único sitio con un scope HTTP en la mano es este `__call__`. La emisión va
+    por lo tanto en un `except ServicioSaturado:` alrededor del `with`, que
+    **re-levanta siempre**: el manejador registrado en `crear_app()` sigue
+    siendo el único constructor de la respuesta 503, y el log no puede cambiar
+    un código de estado.
     """
 
     __slots__ = ("app",)
@@ -135,8 +145,20 @@ class AdmisionDeBorde:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
-        with admitir():
-            await self.app(scope, receive, send)
+        try:
+            with admitir():
+                await self.app(scope, receive, send)
+        except ServicioSaturado:
+            # `scope.get`, nunca `scope[...]`: un scope HTTP mínimo armado a
+            # mano (las pruebas del middleware lo hacen) puede no traer
+            # `method` ni `path`, y el log jamás debe ser lo que rompa la
+            # petición. El saneo de ambos valores vive en `registrar_saturacion`.
+            registrar_saturacion(
+                metodo=str(scope.get("method", "")),
+                ruta=str(scope.get("path", "")),
+                ejecuciones_max=obtener_configuracion().ejecuciones_max,
+            )
+            raise
 
 
 # --- proceso: mensajes que cruzan el Pipe ------------------------------------

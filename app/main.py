@@ -16,6 +16,7 @@ from starlette.routing import Mount
 from app.core.ejecucion import AdmisionDeBorde, registrar_manejador_503
 from app.core.errores import registrar_manejador_errores
 from app.core.fallos_http import registrar_manejadores_de_fallo
+from app.core.registro import configurar_logging
 from app.core.seguridad import AutenticacionDeBorde, registrar_manejador_401
 from app.core.temporales import ciclo_de_vida
 from app.core.validacion_http import registrar_manejador_validacion
@@ -24,6 +25,16 @@ from app.salud import router_salud
 
 
 def crear_app() -> FastAPI:
+    # Ítem #14, punto de entrada EXPLÍCITO del logging operativo. Va acá y no
+    # a nivel de import de `app/core/registro.py`: `app/core/ejecucion.py` es
+    # reimportado por cada hijo de `spawn` y garantiza no tener efecto de
+    # importación, así que ningún módulo de esa cadena puede configurar
+    # logging al importarse. `configurar_logging()` no lee `Configuracion`, de
+    # modo que llamarla desde acá no rompe la convención de pereza (D3) aunque
+    # este módulo construya `app` a nivel de módulo. Sin esta línea el ítem
+    # entero sería un no-op: uvicorn no pone handler en la raíz ni le fija
+    # nivel, así que un `app.*` en INFO no llegaría a ninguna parte.
+    configurar_logging()
     # `ciclo_de_vida` (app/core/temporales.py) llama primero a
     # `obtener_configuracion()` -- 1. falla cerrado; ADR 0012 paso 2 --,
     # antes de tocar la raíz de temporales o el barrendero.

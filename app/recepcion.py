@@ -25,6 +25,7 @@ compara (ADR 0021).
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import IO, Annotated, Final
 
@@ -34,8 +35,11 @@ from starlette.responses import FileResponse, Response
 
 from app.core.configuracion import obtener_configuracion
 from app.core.contrato import obtener_contrato
-from app.core.errores import ErrorClaveInexistente, ErrorTamano
+from app.core.ejecucion import EjecucionExpirada, FalloDelModulo, HijoMuerto
+from app.core.empaquetado import SalidaMalFormada
+from app.core.errores import ErrorClaveInexistente, ErrorTamano, ErrorTipificado
 from app.core.pipeline import ejecutar_pipeline
+from app.core.registro import ResultadoDeEjecucion, registrar_ejecucion
 from app.core.temporales import reservar
 from app.core.tipos import ArchivoEntrada
 from app.core.validaciones import (
@@ -140,87 +144,169 @@ async def recibir(
     había un `raise NotImplementedError` ahora corren los pasos 6-8
     (`app.core.pipeline.ejecutar_pipeline`) y el paso 9, la `FileResponse`
     que hereda la propiedad del directorio vía `reserva.ceder_limpieza()`.
+
+    **El ítem #14 envuelve las dos fases en `try/except/finally` para emitir la
+    línea de registro de la ejecución, y todo lo que atrapa lo re-levanta.**
+    Ésa es la regla, no una precaución: los manejadores registrados en
+    `crear_app()` siguen siendo los únicos que construyen respuestas, así que
+    ningún `except` de acá puede cambiar un código de estado. Cada rama sólo
+    anota qué pasó y vuelve a levantar; el `finally` emite una línea —y
+    exactamente una— por cada petición que entró a este cuerpo.
+
+    El reloj es **de la ruta**: arranca antes de resolver el contrato y para
+    cuando la respuesta ya está construida. No mide el parseo multipart ni la
+    admisión (ocurren antes de este cuerpo), ni el envío del cuerpo de
+    respuesta, ni el hijo dedicado por separado. El ítem #17 necesita el reloj
+    del hijo para calibrar `TIMEOUT_EJECUCION`; éste no es ése.
+
+    `app/core/pipeline.py` sigue sin atrapar nada: su docstring lo promete y
+    esta entrega no lo toca. El `try` vive acá, en el borde HTTP, que es donde
+    ya vivía el reparto de responsabilidades del ítem #10.
     """
-    contrato = obtener_contrato(clave_procesador)
-    if contrato is None:
-        raise ErrorClaveInexistente(clave_procesador=clave_procesador, causa="fila_ausente")
+    inicio = time.perf_counter()
+    # Arranca en el desenlace no clasificado, no en éxito: así una salida que
+    # ninguna rama nombra —`asyncio.CancelledError` por desconexión del
+    # cliente, que no es `Exception` y por lo tanto ningún `except` de acá
+    # atrapa— se registra como lo que es, y no como un éxito falso.
+    resultado = ResultadoDeEjecucion.FALLO_NO_CLASIFICADO
+    tipo_error: str | None = None
+    mensaje_error: str | None = None
+    traza: str | None = None
+    # Bytes efectivamente copiados a disco (la definición de `tamano_comprimido`,
+    # ADR 0020). Vive fuera del `try` para que una falla a mitad de la fase 2
+    # registre lo que sí se escribió; un rechazo de fase 1 registra `0` porque
+    # no escribió nada.
+    bytes_recibidos = 0
+    try:
+        contrato = obtener_contrato(clave_procesador)
+        if contrato is None:
+            raise ErrorClaveInexistente(clave_procesador=clave_procesador, causa="fila_ausente")
 
-    nombres = [carga.filename or "" for carga in archivos]
-    validar_cantidad(recibido=len(archivos), contrato=contrato)
-    for nombre_original in nombres:
-        validar_formato(
-            nombre_original=nombre_original,
-            formato=_formato(nombre_original),
-            contrato=contrato,
-        )
-
-    # Pasada declarada: `UploadFile.size` es la cuenta que Starlette midió al
-    # volcar la parte, así que rechazar acá es gratis y verdadero. Es
-    # `int | None`: un solo `None` desactiva toda la pasada y el total medido
-    # de la fase 2 queda como única autoridad.
-    medidos = [carga.size for carga in archivos if carga.size is not None]
-    if len(medidos) == len(archivos):
-        for nombre_original, tamano in zip(nombres, medidos, strict=True):
-            validar_tamano(nombre_original=nombre_original, tamano_bytes=tamano, contrato=contrato)
-        validar_tamano_total(nombres=nombres, total_bytes=sum(medidos), contrato=contrato)
-
-    with reservar() as reserva:
-        entradas: list[ArchivoEntrada] = []
-        total_medido = 0
-        for indice, (carga, nombre_original) in enumerate(zip(archivos, nombres, strict=True)):
-            ruta_temporal = reserva.directorio / f"entrada_{indice}"
-            tamano_comprimido = await run_in_threadpool(
-                _copiar,
-                carga.file,
-                ruta_temporal,
-                limite_bytes=contrato.tamano_max_bytes,
+        nombres = [carga.filename or "" for carga in archivos]
+        validar_cantidad(recibido=len(archivos), contrato=contrato)
+        for nombre_original in nombres:
+            validar_formato(
                 nombre_original=nombre_original,
-            )
-            entrada = ArchivoEntrada(
-                nombre_original=nombre_original,
-                ruta_temporal=ruta_temporal,
-                tamano_comprimido=tamano_comprimido,
                 formato=_formato(nombre_original),
+                contrato=contrato,
             )
-            entradas.append(entrada)
 
-            # Re-comprobado tras CADA copia, no al final: así el archivo (n+1)
-            # nunca se copia si el lote ya está pasado de presupuesto.
-            total_medido += tamano_comprimido
-            validar_tamano_total(
-                nombres=nombres[: indice + 1], total_bytes=total_medido, contrato=contrato
+        # Pasada declarada: `UploadFile.size` es la cuenta que Starlette midió al
+        # volcar la parte, así que rechazar acá es gratis y verdadero. Es
+        # `int | None`: un solo `None` desactiva toda la pasada y el total medido
+        # de la fase 2 queda como única autoridad.
+        medidos = [carga.size for carga in archivos if carga.size is not None]
+        if len(medidos) == len(archivos):
+            for nombre_original, tamano in zip(nombres, medidos, strict=True):
+                validar_tamano(
+                    nombre_original=nombre_original, tamano_bytes=tamano, contrato=contrato
+                )
+            validar_tamano_total(nombres=nombres, total_bytes=sum(medidos), contrato=contrato)
+
+        with reservar() as reserva:
+            entradas: list[ArchivoEntrada] = []
+            for indice, (carga, nombre_original) in enumerate(zip(archivos, nombres, strict=True)):
+                ruta_temporal = reserva.directorio / f"entrada_{indice}"
+                tamano_comprimido = await run_in_threadpool(
+                    _copiar,
+                    carga.file,
+                    ruta_temporal,
+                    limite_bytes=contrato.tamano_max_bytes,
+                    nombre_original=nombre_original,
+                )
+                entrada = ArchivoEntrada(
+                    nombre_original=nombre_original,
+                    ruta_temporal=ruta_temporal,
+                    tamano_comprimido=tamano_comprimido,
+                    formato=_formato(nombre_original),
+                )
+                entradas.append(entrada)
+
+                # Re-comprobado tras CADA copia, no al final: así el archivo (n+1)
+                # nunca se copia si el lote ya está pasado de presupuesto.
+                bytes_recibidos += tamano_comprimido
+                validar_tamano_total(
+                    nombres=nombres[: indice + 1], total_bytes=bytes_recibidos, contrato=contrato
+                )
+                validar_tamano_descomprimido(entrada)
+
+            # Pasos 6-8 (ítem #10). Va DENTRO del `with`, no después: `empaquetar`
+            # escribe el ZIP dentro de `reserva.directorio`, así que el directorio
+            # tiene que seguir vivo mientras corre el pipeline. Si algo de acá
+            # levanta -- un `ErrorTipificado` del módulo, un `FalloDeEjecucion` de
+            # la plomería, una `SalidaMalFormada` del empaquetado -- el `finally`
+            # de `reservar()` borra, sin ninguna limpieza rival en este archivo.
+            #
+            # `run_in_threadpool` porque `ejecutar_pipeline` bloquea de verdad
+            # (`poll`/`join` sobre el hijo dedicado): correrlo en el bucle de
+            # eventos congelaría al worker entero. El semáforo del ítem #8 es un
+            # `threading.BoundedSemaphore` justamente para seguir siendo válido
+            # desde el threadpool; acá no se toca -- `AdmisionDeBorde` es el único
+            # sitio que lo adquiere y lo libera.
+            salida = await run_in_threadpool(
+                ejecutar_pipeline,
+                clave=clave_procesador,
+                entradas=entradas,
+                directorio=reserva.directorio,
+                timeout=obtener_configuracion().timeout_ejecucion,
             )
-            validar_tamano_descomprimido(entrada)
-
-        # Pasos 6-8 (ítem #10). Va DENTRO del `with`, no después: `empaquetar`
-        # escribe el ZIP dentro de `reserva.directorio`, así que el directorio
-        # tiene que seguir vivo mientras corre el pipeline. Si algo de acá
-        # levanta -- un `ErrorTipificado` del módulo, un `FalloDeEjecucion` de
-        # la plomería, una `SalidaMalFormada` del empaquetado -- el `finally`
-        # de `reservar()` borra, sin ninguna limpieza rival en este archivo.
-        #
-        # `run_in_threadpool` porque `ejecutar_pipeline` bloquea de verdad
-        # (`poll`/`join` sobre el hijo dedicado): correrlo en el bucle de
-        # eventos congelaría al worker entero. El semáforo del ítem #8 es un
-        # `threading.BoundedSemaphore` justamente para seguir siendo válido
-        # desde el threadpool; acá no se toca -- `AdmisionDeBorde` es el único
-        # sitio que lo adquiere y lo libera.
-        salida = await run_in_threadpool(
-            ejecutar_pipeline,
+            # Paso 9. `ceder_limpieza()` sólo acá, en el camino de éxito y después
+            # de que el pipeline retornó: transfiere la propiedad del directorio a
+            # la respuesta, que lo borra en su `BackgroundTask` una vez enviado el
+            # último byte (ADR 0020). `filename` deja la codificación de
+            # `Content-Disposition` en manos de Starlette -- ningún encabezado
+            # armado a mano acá.
+            respuesta = FileResponse(
+                salida.ruta_temporal,
+                filename=salida.nombre_propuesto,
+                media_type=salida.tipo_mime,
+                background=reserva.ceder_limpieza(),
+            )
+            resultado = ResultadoDeEjecucion.EXITO
+            return respuesta
+    except ErrorTipificado as error:
+        # Los cinco tipos de ADR 0014, sea cual sea su código HTTP: los cuatro
+        # corregibles (422) y `clave_inexistente` (500). `tipo` los distingue en
+        # la línea; el desenlace no necesita un miembro por cada uno.
+        resultado = ResultadoDeEjecucion.RECHAZO_TIPIFICADO
+        tipo_error = error.tipo.value
+        raise
+    except EjecucionExpirada:
+        resultado = ResultadoDeEjecucion.EJECUCION_EXPIRADA
+        tipo_error = EjecucionExpirada.__name__
+        raise
+    except FalloDelModulo as fallo:
+        # La traza del hijo es material de logging por decisión explícita
+        # (ADR 0022, `app/core/fallos_http.py:23-24`): nunca sale al cliente,
+        # pero sin ella un 500 desnudo es indiagnosticable. Ver el costo
+        # aceptado en la docstring de `registrar_ejecucion`.
+        resultado = ResultadoDeEjecucion.FALLO_DEL_MODULO
+        tipo_error = fallo.clase
+        mensaje_error = fallo.mensaje
+        traza = fallo.traza
+        raise
+    except HijoMuerto as fallo:
+        resultado = ResultadoDeEjecucion.HIJO_MUERTO
+        tipo_error = HijoMuerto.__name__
+        mensaje_error = f"exitcode={fallo.exitcode}"
+        raise
+    except SalidaMalFormada as fallo:
+        resultado = ResultadoDeEjecucion.EMPAQUETADO_MAL_FORMADO
+        tipo_error = SalidaMalFormada.__name__
+        mensaje_error = str(fallo)
+        raise
+    except Exception as fallo:
+        resultado = ResultadoDeEjecucion.FALLO_NO_CLASIFICADO
+        tipo_error = type(fallo).__name__
+        raise
+    finally:
+        registrar_ejecucion(
             clave=clave_procesador,
-            entradas=entradas,
-            directorio=reserva.directorio,
-            timeout=obtener_configuracion().timeout_ejecucion,
-        )
-        # Paso 9. `ceder_limpieza()` sólo acá, en el camino de éxito y después
-        # de que el pipeline retornó: transfiere la propiedad del directorio a
-        # la respuesta, que lo borra en su `BackgroundTask` una vez enviado el
-        # último byte (ADR 0020). `filename` deja la codificación de
-        # `Content-Disposition` en manos de Starlette -- ningún encabezado
-        # armado a mano acá.
-        return FileResponse(
-            salida.ruta_temporal,
-            filename=salida.nombre_propuesto,
-            media_type=salida.tipo_mime,
-            background=reserva.ceder_limpieza(),
+            archivos=len(archivos),
+            bytes_recibidos=bytes_recibidos,
+            duracion_ruta_ms=(time.perf_counter() - inicio) * 1000,
+            resultado=resultado,
+            tipo_error=tipo_error,
+            mensaje_error=mensaje_error,
+            traza=traza,
         )
