@@ -15,6 +15,7 @@ from starlette.routing import Mount
 
 from app.core.ejecucion import AdmisionDeBorde, registrar_manejador_503
 from app.core.errores import registrar_manejador_errores
+from app.core.fallos_http import registrar_manejadores_de_fallo
 from app.core.seguridad import AutenticacionDeBorde, registrar_manejador_401
 from app.core.temporales import ciclo_de_vida
 from app.core.validacion_http import registrar_manejador_validacion
@@ -35,6 +36,9 @@ def crear_app() -> FastAPI:
     registrar_manejador_validacion(app)  # ítem #6, obligación 2 (design.md §4)
     registrar_manejador_errores(app)  # ítem #3, cableado en producción (supera design.md §12)
     registrar_manejador_503(app)  # ítem #8, mitad de admisión (design.md §3, §7)
+    # ítem #10: las cuatro fallas no tipificadas del pipeline. Van por clase
+    # concreta, nunca una sola sobre `FalloDeEjecucion` (ADR 0023).
+    registrar_manejadores_de_fallo(app)
     # Frontera autenticada: cualquier ruta de procesador vive dentro de este
     # montaje, nunca fuera de él. No hay lista de rutas en ningún lugar
     # (ADR 0016, ADR 0019); la pertenencia es el registro dentro del router.

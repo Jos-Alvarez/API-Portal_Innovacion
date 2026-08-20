@@ -14,11 +14,12 @@ adrs/0020, sección Consecuencias.
 Módulo de nivel superior siguiendo el precedente ya embarcado de
 `app/salud.py` (V10 del design.md): la superficie HTTP vive en `app/`, no en
 `app/core/`, que es el pipeline. Importa `app.core.temporales` (la
-propiedad/limpieza), `app.core.contrato`, `app.core.errores` y
-`app.core.validaciones`, pero nada de `app/procesadores/` (invariante de
-ADR 0011). El tráfico va en un solo sentido: ningún tipo de Starlette cruza
-hacia `app/core/` — la ruta extrae `filename`/`size`/`file`, el núcleo compara
-(ADR 0021).
+propiedad/limpieza), `app.core.contrato`, `app.core.errores`,
+`app.core.validaciones` y `app.core.pipeline`, pero nada de
+`app/procesadores/` (invariante de ADR 0011). El tráfico va en un solo
+sentido: ningún tipo de Starlette cruza hacia `app/core/` — la ruta extrae
+`filename`/`size`/`file` y le pasa al pipeline un `Path` desnudo, el núcleo
+compara (ADR 0021).
 """
 
 from __future__ import annotations
@@ -28,10 +29,12 @@ from typing import IO, Annotated, Final
 
 from fastapi import APIRouter, File, UploadFile
 from starlette.concurrency import run_in_threadpool
-from starlette.responses import Response
+from starlette.responses import FileResponse, Response
 
+from app.core.configuracion import obtener_configuracion
 from app.core.contrato import obtener_contrato
 from app.core.errores import ErrorClaveInexistente, ErrorTamano
+from app.core.pipeline import ejecutar_pipeline
 from app.core.temporales import reservar
 from app.core.tipos import ArchivoEntrada
 from app.core.validaciones import (
@@ -131,8 +134,10 @@ async def recibir(
     (una clave desconocida no debe costar una escritura), pero la evidencia de
     recepción del ítem #6 pasa a depender de un contrato inyectado en pruebas.
 
-    Los ítems #9/#10 son los que cambian el `raise` final por
-    `FileResponse(..., background=reserva.ceder_limpieza())`.
+    El ítem #10 cerró la costura que quedaba al final de la fase 2: donde
+    había un `raise NotImplementedError` ahora corren los pasos 6-8
+    (`app.core.pipeline.ejecutar_pipeline`) y el paso 9, la `FileResponse`
+    que hereda la propiedad del directorio vía `reserva.ceder_limpieza()`.
     """
     contrato = obtener_contrato(clave_procesador)
     if contrato is None:
@@ -185,6 +190,35 @@ async def recibir(
             )
             validar_tamano_descomprimido(entrada)
 
-        # Costura de los ítems #9/#10 -- el único cambio que necesitan acá:
-        #   return FileResponse(salida, background=reserva.ceder_limpieza())
-        raise NotImplementedError  # inalcanzable hoy: no hay contrato registrado
+        # Pasos 6-8 (ítem #10). Va DENTRO del `with`, no después: `empaquetar`
+        # escribe el ZIP dentro de `reserva.directorio`, así que el directorio
+        # tiene que seguir vivo mientras corre el pipeline. Si algo de acá
+        # levanta -- un `ErrorTipificado` del módulo, un `FalloDeEjecucion` de
+        # la plomería, una `SalidaMalFormada` del empaquetado -- el `finally`
+        # de `reservar()` borra, sin ninguna limpieza rival en este archivo.
+        #
+        # `run_in_threadpool` porque `ejecutar_pipeline` bloquea de verdad
+        # (`poll`/`join` sobre el hijo dedicado): correrlo en el bucle de
+        # eventos congelaría al worker entero. El semáforo del ítem #8 es un
+        # `threading.BoundedSemaphore` justamente para seguir siendo válido
+        # desde el threadpool; acá no se toca -- `AdmisionDeBorde` es el único
+        # sitio que lo adquiere y lo libera.
+        salida = await run_in_threadpool(
+            ejecutar_pipeline,
+            clave=clave_procesador,
+            entradas=entradas,
+            directorio=reserva.directorio,
+            timeout=obtener_configuracion().timeout_ejecucion,
+        )
+        # Paso 9. `ceder_limpieza()` sólo acá, en el camino de éxito y después
+        # de que el pipeline retornó: transfiere la propiedad del directorio a
+        # la respuesta, que lo borra en su `BackgroundTask` una vez enviado el
+        # último byte (ADR 0020). `filename` deja la codificación de
+        # `Content-Disposition` en manos de Starlette -- ningún encabezado
+        # armado a mano acá.
+        return FileResponse(
+            salida.ruta_temporal,
+            filename=salida.nombre_propuesto,
+            media_type=salida.tipo_mime,
+            background=reserva.ceder_limpieza(),
+        )
