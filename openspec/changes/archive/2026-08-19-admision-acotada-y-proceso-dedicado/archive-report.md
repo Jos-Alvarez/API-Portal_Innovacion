@@ -174,7 +174,12 @@ Per design.md §15 and verify-report:
 - Middleware + 503 handler registered and working — item #10 wires the seam in `recepcion.py`
 - Two execution parameters configured and validated (EJECUCIONES_MAX, TIMEOUT_EJECUCION) — item #10 passes timeout to executor
 
-**Unblocking statement**: item #10 can begin immediately; all primitives are in place and tested end-to-end.
+**Unblocking statement**: item #10 is NOT yet unblocked by this closure. `BACKLOG.md` lists item #10 as
+depending on #4, #5, #6, #7, #8 **and #9**, and item #9 (output packaging) has not shipped. What #8
+removes is one of #10's six preconditions, not the last one.
+
+**The next item that can actually start is #9** (output packaging), whose own dependencies — #3 and #6 —
+are both archived. It does not depend on #8 at all and could have been built in parallel with it.
 
 **Item #12/#14/#16/#17 receive:**
 - `bounded-execution` and `configuration` specs as sealed contract
@@ -217,7 +222,7 @@ All artifacts physically present and verified.
 ✓ Delta specs merged to main specs  
 ✓ Archive report written and recorded  
 
-**Status**: The change has been fully planned, implemented, verified, and archived. Ready for items #10 (pipeline composition) and #12/#14/#16/#17 (processor registration and logging).
+**Status**: The change has been fully planned, implemented, verified, and archived. The next startable item is #9 (output packaging); item #10 still waits on #9, and #12/#14/#16/#17 wait further down the chain.
 
 ## Archiver Note
 
