@@ -14,30 +14,59 @@ existing fail-closed startup behavior.
 
 ## Requirements
 
-### Requirement: `EJECUCIONES_MAX` is a required, positive integer
-`Configuracion` MUST expose `EJECUCIONES_MAX` as a required positive integer. Startup MUST fail when
-it is absent, non-numeric, zero, or negative.
+### Requirement: `EJECUCIONES_MAX` is a bounded positive integer with a conservative default
+`Configuracion` MUST expose `EJECUCIONES_MAX` as a positive integer bounded at both ends, carrying a
+conservative placeholder default so an unset value does not block startup. Startup MUST fail when it
+is present but non-numeric, zero, negative, or above the upper bound.
 
-#### Scenario: Missing or non-positive value fails startup
-- GIVEN the `EJECUCIONES_MAX` environment variable is unset, or set to zero or a negative number
+Unlike `token_servicio`, this field is NOT required: a secret has no safe default, a concurrency
+ceiling does. Forcing every deployment to declare a number nobody has measured yet (item #17 owns
+calibration) only invites an invented one. The upper bound is what makes `EJECUCIONES_MAX` the
+service's real concurrency knob — above it, anyio's default thread limiter would become the true
+ceiling instead.
+
+#### Scenario: Absent value falls back to the placeholder default
+- GIVEN the `EJECUCIONES_MAX` environment variable is unset
+- WHEN the application starts
+- THEN startup succeeds using the conservative placeholder default
+
+#### Scenario: A present but invalid value fails startup
+- GIVEN `EJECUCIONES_MAX` is set to zero, a negative number, a non-numeric string, or a value above
+  the upper bound
 - WHEN the application starts
 - THEN startup fails and no HTTP server accepts requests
 
-#### Scenario: A positive value starts successfully
-- GIVEN `EJECUCIONES_MAX` is set to a positive integer, and every other required configuration value
-  is valid
+#### Scenario: A valid value starts successfully
+- GIVEN `EJECUCIONES_MAX` is set to a positive integer within bounds, and every other required
+  configuration value is valid
 - WHEN the application starts
 - THEN startup succeeds
 
-### Requirement: `TIMEOUT_EJECUCION` is a required, positive duration strictly below the portal's 2-minute cutoff
-`Configuracion` MUST expose `TIMEOUT_EJECUCION` as a required positive duration. A `Configuracion`
-validator MUST reject any value that is not strictly less than the portal's 2-minute request cutoff
-— this relationship MUST be enforced in code, not only documented.
+### Requirement: `TIMEOUT_EJECUCION` is a positive duration strictly below the portal's 2-minute cutoff, with a conservative default
+`Configuracion` MUST expose `TIMEOUT_EJECUCION` as a positive duration carrying a conservative
+placeholder default, so an unset value does not block startup. A `Configuracion` validator MUST
+reject any value that is not strictly less than the portal's 2-minute request cutoff — this
+relationship MUST be enforced in code, not only documented.
 
-#### Scenario: Missing or non-positive value fails startup
-- GIVEN the `TIMEOUT_EJECUCION` environment variable is unset, or set to zero or a negative value
+The field MUST accept both a bare number of seconds and an ISO 8601 duration. Pydantic's own
+`timedelta` parser accepts only ISO 8601, and rejecting `TIMEOUT_EJECUCION=60` — the form an
+operator would reach for first — would surface as a failed startup at deployment time.
+
+#### Scenario: Absent value falls back to the placeholder default
+- GIVEN the `TIMEOUT_EJECUCION` environment variable is unset
+- WHEN the application starts
+- THEN startup succeeds using the conservative placeholder default
+
+#### Scenario: Present but non-positive value fails startup
+- GIVEN `TIMEOUT_EJECUCION` is set to zero or a negative value
 - WHEN the application starts
 - THEN startup fails and no HTTP server accepts requests
+
+#### Scenario: Both a bare seconds value and an ISO 8601 duration are accepted
+- GIVEN `TIMEOUT_EJECUCION` is set to a bare number of seconds, or to the equivalent ISO 8601
+  duration, both strictly below the cutoff
+- WHEN the application starts
+- THEN startup succeeds and both forms resolve to the same duration
 
 #### Scenario: A value at or above the portal's 2-minute cutoff fails startup
 - GIVEN `TIMEOUT_EJECUCION` is set to a value equal to or greater than 2 minutes

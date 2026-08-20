@@ -141,3 +141,11 @@ ADR 0021 ya tuvo que registrar una vez para la unión de contextos.
 - **La garantía de pickling de `ErrorTipificado` es general**, no específica de este ítem: cualquier
   código futuro que necesite serializar un error tipificado (no solo el `Pipe` del proceso hijo) hereda
   la garantía sin cambios adicionales.
+- **Riesgo abierto: el proceso hijo hereda `os.environ` completo**, incluido `TOKEN_SERVICIO` y las
+  credenciales de base de datos que el ítem #5 pueda incorporar más adelante. `multiprocessing.Process`
+  no expone un parámetro `env` con el que acotar el entorno del hijo, así que `spawn` aísla los
+  descriptores del padre pero no sus variables de entorno. Hoy el impacto está acotado porque el hijo
+  ejecuta código propio del repositorio y no toca la base (ADR 0013), pero el día que un procesador
+  concreto ejecute o importe algo de terceros, ese código lee el token del servicio sin pedir permiso.
+  Queda registrado sin mitigación y sin test: inventar uno daría la impresión de que el riesgo está
+  cubierto. La mitigación real —lanzar el hijo con un entorno saneado— es trabajo de otro ítem.
