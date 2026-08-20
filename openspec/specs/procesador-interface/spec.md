@@ -113,14 +113,19 @@ Per ADR 0011, `app/core/interfaz.py` MUST import cleanly with `app/procesadores/
 - WHEN `app/core/interfaz.py` is imported
 - THEN the import succeeds
 
-### Requirement: `Procesador`'s docstring records the item #8 open question
-The class docstring MUST state that whether the child process re-derives the processor instance or
-receives a pickled live instance is undecided and belongs to item #8.
+### Requirement: `Procesador`'s docstring records the child-instantiation resolution
+The class docstring MUST state that the child process re-imports the application module tree and
+looks up its processor instance from `REGISTRY` by `clave`, and MUST state that a serialized
+(pickled) `Procesador` instance never crosses the process boundary — only `clave` (a string) and
+file paths do.
+(Previously: the docstring stated that whether the child re-derives the processor instance or
+receives a pickled live instance was undecided and belonged to item #8.)
 
-#### Scenario: Docstring states the open question
+#### Scenario: Docstring states the resolved decision
 - GIVEN `Procesador.__doc__`
 - WHEN read
-- THEN it states the child-process instantiation strategy is undecided, owned by item #8
+- THEN it states that the child process re-imports and looks up the processor by `clave` via
+  `REGISTRY`, and that no serialized `Procesador` instance ever crosses the process boundary
 
 > **Requirement removed on 2026-08-18.** This slot held "Shipped application route set is
 > unchanged", worded as *"**This change** MUST NOT add any route…"* with a scenario comparing
