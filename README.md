@@ -33,6 +33,70 @@ uv run ruff format --check .     # format check
 uv run mypy app tests            # type check
 ```
 
+## Parity fixtures
+
+Every real processor is validated against **3 real input/output pairs**. Those
+files are financial extracts and they do **not** live in this repository (ADR
+0015): committing them would leave real amounts and account numbers in Git
+history permanently, replicated to every clone and every runner. The
+repository stores only `tests/paridad/manifiesto.toml` — filenames, expected
+`sha256`, and the **provenance** of each expected output.
+
+Point `FIXTURES_PARIDAD` at the internal share. One subdirectory per
+processor, named exactly like the manifest section:
+
+```
+$FIXTURES_PARIDAD/contado_carga/01_entrada.xlsx  01_salida.xlsx  01_salida.txt
+```
+
+**Nothing runs against parity fixtures today.** `manifiesto.toml` ships empty
+on purpose: `Contado_Carga`'s three real pairs have not been produced yet
+(backlog item #16). The machinery and its own tests are in place so that item
+#16 only has to fill in the manifest.
+
+### Adding a pair
+
+Deliberate friction, at the one moment where this kind of test can be
+corrupted. A hash proves a file did not change; it does not prove the file is
+*correct*. Provenance is what records where the expected output came from, so
+that a byte-for-byte failure six months from now is diagnosable.
+
+1. Copy the files to the share, under the processor's directory.
+2. Hash every file, plus the exact `.py` that produced the expected output:
+   ```
+   uv run python -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" <file>
+   ```
+3. **Observe** the TXT's line ending — do not assume it:
+   ```
+   uv run python -c "import sys;d=open(sys.argv[1],'rb').read();print('CRLF' if b'\r\n' in d else 'LF')" <file>
+   ```
+4. Add the `[[<procesador>.pares]]` block to `tests/paridad/manifiesto.toml`
+   with all five provenance fields. The commented template in that file is the
+   exact shape the validator expects.
+
+Updating an existing fixture means replacing the file **and** updating both
+its hash and its provenance, in one reviewable change. A hash that moves while
+the provenance stays put is the signature of a reference file tweaked to make
+a test pass.
+
+### What fails and what skips
+
+`tests/paridad/manifiesto.py` enforces three severities, and they are not
+interchangeable:
+
+| Situation | Local | CI |
+|---|---|---|
+| Malformed manifest, or a pair with incomplete provenance | **fail** | **fail** |
+| `FIXTURES_PARIDAD` pointing inside the repository | **fail** | **fail** |
+| Fixture present but `sha256` does not match | **fail** | **fail** |
+| Fixtures absent (variable unset, share not mounted) | skip, with a loud warning | **fail** |
+
+"CI" is detected through the conventional `CI` environment variable, which
+GitHub Actions, GitLab CI, CircleCI and Jenkins all set on their own. This
+repository has **no CI workflow today** — the gate is `uv run pytest` on a
+developer machine — so in practice the skip branch is the one taken. The rule
+is in place for the day a runner exists.
+
 ## Testing notes
 
 - The service enforces `multiprocessing.set_start_method("spawn", force=True)`

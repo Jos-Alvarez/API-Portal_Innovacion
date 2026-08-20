@@ -1,0 +1,31 @@
+# Manifiesto de fixtures de paridad (ADR 0015).
+#
+# Los archivos que este manifiesto describe NO viven en el repositorio. Viven
+# en el recurso compartido interno que apunta la variable de entorno
+# FIXTURES_PARIDAD, en un subdirectorio por procesador con el mismo nombre que
+# la seccion de aca abajo:
+#
+#     $FIXTURES_PARIDAD/contado_carga/01_entrada.xlsx
+#
+# El contrato lo verifica tests/paridad/manifiesto.py y no admite pares a
+# medias: un par sin bloque [procedencia] completo es un fallo en CI Y en
+# local. El procedimiento para dar de alta un par esta en el README, seccion
+# "Parity fixtures".
+#
+# Hoy no hay ninguna seccion poblada: los tres pares reales de Contado_Carga
+# todavia no llegaron (item #16 del BACKLOG, columna "Contexto extra
+# requerido"). El bloque comentado de abajo es la forma exacta que espera el
+# validador -- descomentar, completar y borrar este parrafo.
+#
+# [[contado_carga.pares]]
+# id          = "01"
+# entrada     = { archivo = "01_entrada.xlsx", sha256 = "<64 hex en minuscula>" }
+# salida_xlsx = { archivo = "01_salida.xlsx",  sha256 = "<64 hex en minuscula>" }
+# salida_txt  = { archivo = "01_salida.txt",   sha256 = "<64 hex en minuscula>" }
+#
+#   [contado_carga.pares.procedencia]
+#   generado_por   = "Contado_Carga.py"
+#   version_script = "sha256:<64 hex del .py exacto que produjo esta salida>"
+#   generado_el    = 2026-08-14                      # fecha TOML nativa, no texto
+#   generado_en    = "Windows Server 2019 / Python 3.11.9"
+#   fin_de_linea   = "CRLF"                          # OBSERVADO del archivo, no asumido
