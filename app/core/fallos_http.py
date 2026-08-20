@@ -7,6 +7,15 @@ Ninguna de las cuatro entra en el vocabulario de ADR 0014: `TipoError`
 conserva exactamente cinco miembros y este módulo no agrega un sexto ni
 reutiliza uno existente para describir algo que no describe.
 
+Los códigos se eligieron al implementar el ítem #10; ningún ADR previo los
+fija, así que quedan registrados acá. `EjecucionExpirada` responde **504** y
+las otras tres **500**: las cuatro son fallas del lado del servidor y ninguna
+es corregible por quien envió los archivos, pero el timeout es la única que
+le permite al portal decir "tardó demasiado" en vez de "algo se rompió", y
+esa distinción vale un código propio. Un mismo 500 parejo también sería
+defendible; si el portal decide que no necesita separarlas, cambiar el 504
+por 500 es cambiar un solo `status_code` en este archivo.
+
 Por eso la respuesta es un estado desnudo con cuerpo vacío, el patrón que ya
 usan `responder_token_invalido` (401, `app.core.seguridad`) y
 `responder_validacion_invalida` (422, `app.core.validacion_http`): un solo
