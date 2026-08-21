@@ -13,20 +13,17 @@ El manejador se cablea en `crear_app()` vía `registrar_manejador_errores`; el
 router de pruebas de `tests/test_errores_tipificados.py` ejercita cada caso
 (design.md §6).
 
-Este módulo importa únicamente la biblioteca estándar más `fastapi`/
-`starlette`; no importa nada de `app/procesadores/` (invariante de ADR 0011).
+**Este módulo importa ÚNICAMENTE biblioteca estándar.** El ítem #17 sacó el
+mapa de códigos HTTP y su manejador a `app/core/errores_http.py`: el hijo de
+`spawn` alcanza este vocabulario en cada petición (ADR 0012) y no tiene por
+qué pagar el import de FastAPI para hacerlo. No importa nada de
+`app/procesadores/` (invariante de ADR 0011).
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from enum import StrEnum
-from types import MappingProxyType
-from typing import ClassVar, Final, Literal, TypedDict
-
-from fastapi import FastAPI
-from starlette.requests import Request
-from starlette.responses import JSONResponse, Response
+from typing import ClassVar, Literal, TypedDict
 
 
 class TipoError(StrEnum):
@@ -248,27 +245,3 @@ class ErrorClaveInexistente(ErrorTipificado):
     def __init__(self, *, clave_procesador: str, causa: CausaFila | CausaDesincronizacion) -> None:
         super().__init__()
         self.contexto = ContextoClaveInexistente(clave_procesador=clave_procesador, causa=causa)
-
-
-_ESTADO_HTTP: Final[Mapping[TipoError, int]] = MappingProxyType(
-    {
-        TipoError.FORMATO: 422,
-        TipoError.TAMANO: 422,
-        TipoError.CONTENIDO: 422,
-        TipoError.CANTIDAD: 422,
-        TipoError.CLAVE_INEXISTENTE: 500,  # ADR 0018
-    }
-)
-
-
-def responder_error_tipificado(request: Request, exc: Exception) -> Response:
-    if not isinstance(exc, ErrorTipificado):  # V4: la firma debe ser `Exception`
-        raise exc
-    return JSONResponse(
-        status_code=_ESTADO_HTTP[exc.tipo],
-        content={"tipo": exc.tipo.value, "contexto": exc.contexto},
-    )
-
-
-def registrar_manejador_errores(app: FastAPI) -> None:
-    app.add_exception_handler(ErrorTipificado, responder_error_tipificado)  # V2, V3

@@ -7,11 +7,12 @@ bitácora*, no en el de `app/registry.py` (que es la tabla de procesadores).
 Los dos nombres conviven porque viven en paquetes distintos y ninguno importa
 al otro.
 
-**Por qué vive en `app/core/`.** Sus dos únicos llamadores son
-`app.core.ejecucion` (la línea de saturación) y `app.recepcion` (la línea de
-registro de ejecución). `app/core/ejecucion.py` no puede importar módulos de
-nivel superior de `app.*` salvo `app.registry`, así que un módulo de logging
-colgado de `app/` lo dejaría fuera de alcance. No importa nada de
+**Por qué vive en `app/core/`.** Sus llamadores son `app.core.admision`
+(la línea de saturación), `app.recepcion` (la de ejecución) y, desde el ítem
+#16, `app/procesadores/contado_carga/` (la de descartes, emitida desde el
+hijo). Ninguno de ellos puede importar módulos de nivel superior de `app.*`
+salvo `app.registry`, así que un módulo de logging colgado de `app/` los
+dejaría fuera de alcance. No importa nada de
 `app/procesadores/` (invariante de ADR 0011).
 
 **Restricciones que este módulo cumple por construcción:**

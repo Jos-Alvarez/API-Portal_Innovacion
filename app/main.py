@@ -17,8 +17,8 @@ from starlette.middleware import Middleware
 from starlette.routing import Mount
 
 from app.coherencia import contrastar_registry_contra_contratos
-from app.core.ejecucion import AdmisionDeBorde, registrar_manejador_503
-from app.core.errores import registrar_manejador_errores
+from app.core.admision import AdmisionDeBorde, registrar_manejador_503
+from app.core.errores_http import registrar_manejador_errores
 from app.core.fallos_http import registrar_manejadores_de_fallo
 from app.core.registro import configurar_logging
 from app.core.seguridad import AutenticacionDeBorde, registrar_manejador_401

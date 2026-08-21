@@ -1,165 +1,50 @@
-"""Admisión acotada y plomería del proceso dedicado (ítem #8, BACKLOG).
+"""Plomería del proceso dedicado (ítem #8, BACKLOG; ADR 0012).
 
-Dos mitades independientes detrás de un solo módulo (design.md §1, ADR 0022).
-S2 (PR 2 de 4) embarcó la mitad de admisión: el semáforo perezoso, el gestor
-de contexto `admitir()` -- con la misma forma que `temporales.reservar()` --
-y el middleware ASGI `AdmisionDeBorde`, que es el único sitio de adquisición
-y el único sitio de liberación del slot en todo el repositorio (design.md
-§3). S3 (PR 3 de 4) agregó la **mitad de proceso**: los tres mensajes que
-cruzan el `Pipe`, el clasificador puro `clasificar_desenlace`, la jerarquía
-de fallas no-`TipoError` y la plomería genérica `ejecutar_aislado`
-(design.md §5-§7). Esta entrega (S4, PR 4 de 4) cierra el módulo con
-`_ejecutar_en_hijo` y `ejecutar_modulo`: la composición delgada sobre
-`REGISTRY` (Decisión bloqueada -- el hijo re-deriva su `Procesador` por
-`clave`, nunca recibe una instancia serializada; ver `app/core/interfaz.py`).
+Los tres mensajes que cruzan el `Pipe`, el clasificador puro
+`clasificar_desenlace`, la jerarquía de fallas no-`TipoError`, la plomería
+genérica `ejecutar_aislado`, y la composición delgada sobre `REGISTRY`:
+`_ejecutar_en_hijo` y `ejecutar_modulo`. El hijo re-deriva su `Procesador`
+por `clave` y nunca recibe una instancia serializada (ver
+`app/core/interfaz.py`).
 
-El semáforo es perezoso (`@lru_cache(maxsize=1)`, igual que
-`obtener_configuracion`): importar este módulo no lee configuración y no
-tiene efecto de importación -- la precondición que `spawn` impone sobre todo
-módulo que el hijo vuelve a importar (ADR 0012, Consecuencias). Ahora que la
-mitad de proceso existe, esa disciplina es literal: el hijo reimporta este
-módulo entero antes de invocar su objetivo.
+**Este módulo es el que `spawn` reimporta en cada petición**, porque contiene
+el objetivo `_ejecutar_en_hijo`. De ahí las dos disciplinas que gobiernan sus
+imports, y que no son estéticas:
 
-`ServicioSaturado` viaja como un 503 desnudo -- igual que `TokenInvalido`
-viaja como un 401 desnudo en `app/core/seguridad.py`, el precedente que este
-módulo sigue -- sin cuerpo `tipo`/`contexto`: no es un error tipificado, y
-`TipoError` sigue teniendo exactamente cinco miembros (design.md §7, spec
-"This domain introduces no sixth `TipoError` value"). Las fallas de la mitad
-de proceso (`EjecucionExpirada`, `HijoMuerto`, `FalloDelModulo`) tampoco son
-`TipoError`: son excepciones propias que el ítem #10 traduce a HTTP.
+- *Sin efecto de importación.* Importarlo no lee configuración ni toca nada
+  (ADR 0012, Consecuencias).
+- *Sólo biblioteca estándar más `app/core/` liviano.* El ítem #17 mudó la
+  mitad de admisión —el semáforo, `admitir()`, `AdmisionDeBorde` y el
+  manejador 503— a `app/core/admision.py`, y el borde HTTP del vocabulario de
+  errores a `app/core/errores_http.py`. Mientras convivían acá, cada hijo
+  pagaba el import de FastAPI, Starlette y pydantic-settings para servir
+  código HTTP que nunca ejecuta. Medido: el árbol pasó de 662 ms a 283 ms y
+  el pico de memoria del hijo de ~46 MB a ~28 MB (`MEDICIONES.md`).
+
+  **La regla que queda, y conviene decirla explícita: nada de lo que este
+  módulo importe puede arrastrar un framework web ni un lector de
+  configuración.** `tests/test_rendimiento.py` la vigila.
+
+Las fallas de este módulo (`EjecucionExpirada`, `HijoMuerto`,
+`FalloDelModulo`) no son `TipoError`: son excepciones propias que el ítem #10
+traduce a HTTP. `TipoError` sigue teniendo exactamente cinco miembros
+(ADR 0014).
 """
 
 from __future__ import annotations
 
 import multiprocessing
-import threading
 import time
 import traceback
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from enum import StrEnum
-from functools import lru_cache
 from multiprocessing.connection import Connection
 
-from fastapi import FastAPI
-from starlette.requests import Request
-from starlette.responses import Response
-from starlette.types import ASGIApp, Receive, Scope, Send
-
-from app.core.configuracion import obtener_configuracion
 from app.core.errores import ErrorClaveInexistente, ErrorTipificado
-from app.core.registro import registrar_saturacion
 from app.core.tipos import ArchivoEntrada, ArchivoSalida
 from app.registry import REGISTRY
-
-
-class ServicioSaturado(Exception):
-    """Sin campos y sin argumentos, igual que `TokenInvalido`: no transporta
-    ningún dato del rechazo -- no hay ninguno que transportar."""
-
-    __slots__ = ()
-
-
-def responder_servicio_saturado(request: Request, exc: Exception) -> Response:
-    # Único lugar del repositorio donde se construye la respuesta 503.
-    return Response(status_code=503)
-
-
-def registrar_manejador_503(app: FastAPI) -> None:
-    app.add_exception_handler(ServicioSaturado, responder_servicio_saturado)
-
-
-@lru_cache(maxsize=1)
-def obtener_semaforo() -> threading.BoundedSemaphore:
-    """Construye (una sola vez, perezosamente) el semáforo de admisión.
-
-    `threading.BoundedSemaphore`, no `asyncio.Semaphore` (ADR 0012 lo nombra
-    así, y el contador debe ser observable también desde código de
-    threadpool -- design.md §3). Perezoso por el mismo motivo que
-    `obtener_configuracion`: importar este módulo no debe leer configuración.
-    Las pruebas lo limpian con `obtener_semaforo.cache_clear()`, igual que ya
-    hacen con `obtener_configuracion`.
-    """
-    return threading.BoundedSemaphore(obtener_configuracion().ejecuciones_max)
-
-
-@contextmanager
-def admitir() -> Iterator[None]:
-    """Adquiere un slot de admisión sin bloquear, o levanta `ServicioSaturado`.
-
-    Diseño (design.md §3): `acquire(blocking=False)` levanta **antes** del
-    `try:` en caso de fallo, así que ningún `release()` puede emparejarse con
-    una adquisición que nunca ocurrió. Al tener éxito, entra en
-    `try/finally: semaforo.release()` -- el **único** sitio de `release()` en
-    todo el repositorio. El `ValueError` de `BoundedSemaphore` ante una
-    sobre-liberación se deja deliberadamente como el detector de un segundo
-    sitio de liberación futuro, nunca evitado con un contador propio.
-    """
-    semaforo = obtener_semaforo()
-    if not semaforo.acquire(blocking=False):
-        raise ServicioSaturado
-    try:
-        yield
-    finally:
-        semaforo.release()
-
-
-class AdmisionDeBorde:
-    """Middleware ASGI de admisión del montaje `/interno` (design.md §3.4).
-
-    Segunda entrada de la lista `middleware=[...]` del `Mount` existente,
-    **después** de `AutenticacionDeBorde` (V1 del design: `Mount` aplica su
-    lista de middlewares en orden inverso, así que la primera entrada queda
-    más externa). Esto garantiza que la admisión se evalúa después del
-    control del token: un llamador no autenticado nunca puede ocupar un slot
-    (spec "Admission is checked after the token check").
-
-    Envuelve `await self.app(...)` entero en `with admitir():`, así que el
-    slot se mantiene durante toda la petición autenticada -- multipart,
-    validación de contrato, copia acotada y (a partir de S3/S4 y del ítem
-    #10) el hijo dedicado -- y se libera exactamente una vez sin importar
-    cómo termine esa llamada: éxito, un error tipificado, una excepción sin
-    tipificar, un timeout, o un `asyncio.CancelledError` por desconexión del
-    cliente. Todos esos casos son, para este middleware, simplemente
-    retornos o excepciones de `await self.app(...)`; el `finally` del
-    `@contextmanager` los cubre a todos por igual (design.md §3).
-
-    El ítem #14 agrega acá —y **no** dentro de `admitir()`— la línea de log
-    del rechazo por saturación. `admitir()` es un gestor de contexto genérico
-    que las pruebas unitarias invocan directamente, sin scope y sin ruta; el
-    único sitio con un scope HTTP en la mano es este `__call__`. La emisión va
-    por lo tanto en un `except ServicioSaturado:` alrededor del `with`, que
-    **re-levanta siempre**: el manejador registrado en `crear_app()` sigue
-    siendo el único constructor de la respuesta 503, y el log no puede cambiar
-    un código de estado.
-    """
-
-    __slots__ = ("app",)
-
-    def __init__(self, app: ASGIApp) -> None:
-        self.app = app
-
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-        try:
-            with admitir():
-                await self.app(scope, receive, send)
-        except ServicioSaturado:
-            # `scope.get`, nunca `scope[...]`: un scope HTTP mínimo armado a
-            # mano (las pruebas del middleware lo hacen) puede no traer
-            # `method` ni `path`, y el log jamás debe ser lo que rompa la
-            # petición. El saneo de ambos valores vive en `registrar_saturacion`.
-            registrar_saturacion(
-                metodo=str(scope.get("method", "")),
-                ruta=str(scope.get("path", "")),
-                ejecuciones_max=obtener_configuracion().ejecuciones_max,
-            )
-            raise
-
 
 # --- proceso: mensajes que cruzan el Pipe ------------------------------------
 

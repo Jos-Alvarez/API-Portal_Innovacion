@@ -26,6 +26,7 @@ from datetime import timedelta
 
 import pytest
 
+from app.core.admision import admitir, obtener_semaforo
 from app.core.configuracion import obtener_configuracion
 from app.core.ejecucion import (
     Desenlace,
@@ -34,11 +35,9 @@ from app.core.ejecucion import (
     ExcepcionDelHijo,
     HijoMuerto,
     SalidaDelHijo,
-    admitir,
     clasificar_desenlace,
     ejecutar_aislado,
     ejecutar_modulo,
-    obtener_semaforo,
 )
 from app.core.errores import ErrorCantidad, ErrorClaveInexistente
 from app.core.interfaz import Procesador

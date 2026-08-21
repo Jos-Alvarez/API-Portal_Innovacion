@@ -17,7 +17,6 @@ from fastapi import APIRouter, FastAPI
 from fastapi.testclient import TestClient
 
 from app.core.errores import (
-    _ESTADO_HTTP,
     ErrorCantidad,
     ErrorClaveInexistente,
     ErrorContenido,
@@ -25,6 +24,9 @@ from app.core.errores import (
     ErrorTamano,
     ErrorTipificado,
     TipoError,
+)
+from app.core.errores_http import (
+    _ESTADO_HTTP,
     registrar_manejador_errores,
     responder_error_tipificado,
 )

@@ -26,11 +26,11 @@ import io
 import time
 from datetime import datetime
 
-import pytest
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 
 from app.procesadores.contado_carga.modulo import COLUMNAS
+from tests.ayudas.subproceso import ejecutar_snippet
 
 TECHO_DEL_PRD_S = 15.0
 _REGISTROS = 1000
@@ -90,25 +90,44 @@ def test_una_ejecucion_completa_entra_en_el_techo_del_prd(token_sentinela: str) 
     )
 
 
-@pytest.mark.parametrize("modulo_prohibido", ["pandas", "numpy"])
-def test_el_hijo_no_importa_librerias_pesadas(modulo_prohibido: str) -> None:
+_SNIPPET_CADENA_DEL_HIJO = """
+import sys
+
+import app.core.ejecucion  # noqa: F401 - el modulo del objetivo de spawn
+
+PROHIBIDOS = ("pandas", "numpy", "fastapi", "starlette", "pydantic_settings")
+presentes = [m for m in PROHIBIDOS if m in sys.modules]
+assert not presentes, f"la cadena del hijo importa {presentes}"
+print("OK")
+"""
+
+
+def test_el_hijo_no_importa_librerias_pesadas() -> None:
     """La regresión de rendimiento más probable, convertida en comprobación.
 
-    El hijo de `spawn` reimporta el árbol entero en CADA petición (ADR 0012).
-    El ítem #16 eligió openpyxl sobre pandas por eso mismo: `import pandas`
-    cuesta ~590 ms en esta máquina y habría duplicado el arranque del hijo.
-    Que alguien lo reintroduzca —para una conversión "rápida", en un
-    procesador nuevo— es un error fácil de cometer y difícil de notar, porque
-    no rompe ninguna prueba de comportamiento.
+    El hijo de `spawn` reimporta el árbol entero en CADA petición (ADR 0012),
+    así que un import de más no cuesta una vez: cuesta siempre.
 
-    Se comprueba sobre el árbol ya importado y no sobre el texto del código:
-    un import transitivo, escondido detrás de un tercer módulo, cuenta igual.
+    Dos decisiones medidas dependen de esta lista. El ítem #16 eligió openpyxl
+    sobre pandas porque `import pandas` cuesta ~590 ms en esta máquina. El
+    ítem #17 mudó la admisión a `app/core/admision.py` y el borde HTTP de los
+    errores a `app/core/errores_http.py` para sacar FastAPI, Starlette y
+    pydantic-settings de esta cadena: el arranque del hijo bajó de 877 ms a
+    428 ms y su pico de memoria de ~46 MB a ~28 MB (`MEDICIONES.md`).
+
+    Deshacer cualquiera de las dos es fácil y silencioso —un import
+    "inofensivo" en un procesador nuevo, un `from fastapi import ...` para
+    tipar algo— y no rompe ninguna prueba de comportamiento.
+
+    **Corre en un intérprete fresco, y esto es obligatorio, no una
+    precaución.** `sys.modules` es del proceso: para cuando este test corre,
+    otras suites del mismo pytest ya importaron FastAPI, y comprobarlo en
+    proceso daría rojo siempre —diciendo la verdad sobre pytest y una mentira
+    sobre producción—. Se parte de `app.core.ejecucion`, que es el módulo que
+    `spawn` reimporta de verdad por contener el objetivo, y se mira el árbol
+    ya importado en vez del texto del código: un import transitivo escondido
+    detrás de un tercer módulo cuenta igual.
     """
-    import sys
-
-    import app.registry  # noqa: F401 - el import es lo que se prueba
-
-    assert modulo_prohibido not in sys.modules, (
-        f"{modulo_prohibido} entró en la cadena de importación del hijo. Se paga en cada "
-        "petición (ADR 0012, spawn); ver MEDICIONES.md, sección 1."
-    )
+    resultado = ejecutar_snippet(_SNIPPET_CADENA_DEL_HIJO)
+    assert resultado.codigo_salida == 0, resultado.salida
+    assert "OK" in resultado.salida

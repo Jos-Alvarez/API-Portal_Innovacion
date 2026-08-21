@@ -60,8 +60,8 @@ def limpiar_cache_configuracion() -> Iterator[None]:
     filtraría hacia la siguiente si no se limpiara acá, en el mismo lugar
     donde ya se limpiaba ``obtener_configuracion``.
     """
+    from app.core.admision import obtener_semaforo
     from app.core.configuracion import obtener_configuracion
-    from app.core.ejecucion import obtener_semaforo
 
     obtener_configuracion.cache_clear()
     obtener_semaforo.cache_clear()

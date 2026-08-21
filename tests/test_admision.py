@@ -29,7 +29,7 @@ import pytest
 from fastapi.testclient import TestClient
 from starlette.types import Receive, Scope, Send
 
-from app.core.ejecucion import AdmisionDeBorde, ServicioSaturado, obtener_semaforo
+from app.core.admision import AdmisionDeBorde, ServicioSaturado, obtener_semaforo
 from app.core.errores import ErrorCantidad
 from app.core.temporales import _EN_VUELO, _raiz
 from app.main import crear_app
@@ -72,7 +72,7 @@ class TestAdmitir:
     """Pruebas unitarias de `admitir()` (tarea 2.7): sin app, sin `TestClient`."""
 
     def test_libera_al_retornar_normalmente(self, semaforo_de_capacidad_uno: None) -> None:
-        from app.core.ejecucion import admitir
+        from app.core.admision import admitir
 
         with admitir():
             pass
@@ -81,7 +81,7 @@ class TestAdmitir:
         obtener_semaforo().release()
 
     def test_libera_al_propagar_una_excepcion(self, semaforo_de_capacidad_uno: None) -> None:
-        from app.core.ejecucion import admitir
+        from app.core.admision import admitir
 
         with pytest.raises(RuntimeError):
             with admitir():
@@ -92,7 +92,7 @@ class TestAdmitir:
     def test_adquisicion_fallida_levanta_servicio_saturado_y_no_libera_nada(
         self, semaforo_de_capacidad_uno: None
     ) -> None:
-        from app.core.ejecucion import admitir
+        from app.core.admision import admitir
 
         # Slot único ya ocupado por esta prueba -- no por `admitir()`.
         assert obtener_semaforo().acquire(blocking=False) is True

@@ -6,7 +6,10 @@ abiertas como suposiciones:
 1. **¿Cuánto cuesta arrancar el proceso hijo?** ADR 0012 fuerza `spawn` en las
    dos plataformas, así que el intérprete reimporta el árbol de módulos entero
    en **cada** petición. El TECH-DESIGN lo estimaba en "cientos de
-   milisegundos" y lo marcaba explícitamente como suposición.
+   milisegundos" y lo marcaba explícitamente como suposición. La primera
+   corrida lo midió, encontró que el 80 % era FastAPI —que el hijo no usa— y
+   eso disparó la partición de `app/core/errores.py` y `app/core/ejecucion.py`
+   descrita en `MEDICIONES.md`.
 2. **¿Cuál es el p95 de `Contado_Carga` de punta a punta?** El PRD fija el
    techo en 15 segundos.
 3. **¿Cuánta memoria consume una ejecución?** Es la entrada que falta para
@@ -169,14 +172,17 @@ def medir_costo_de_imports() -> list[tuple[str, float]]:
     segundo import es un no-op y mediría cero. Es el mismo costo que paga el
     hijo de `spawn`, que siempre arranca frío.
 
-    Se mide `app.registry` —la cadena entera que el hijo reimporta— y después
-    sus dos piezas caras por separado, para poder decir de dónde sale el
-    número en vez de sólo cuál es.
+    Se mide `app.core.ejecucion` —el módulo del objetivo de `spawn`, o sea la
+    cadena que el hijo reimporta de verdad— y, por contraste, `app.main`, que
+    es el lado del padre. Desde el ítem #17 FastAPI vive sólo del lado del
+    padre: aparece en la lista para dejar ver la diferencia, no porque el hijo
+    lo pague.
     """
     objetivos = {
-        "árbol completo (app.registry)": "import app.registry",
-        "  └ fastapi": "import fastapi",
-        "  └ openpyxl": "import openpyxl",
+        "cadena del hijo (app.core.ejecucion)": "import app.core.ejecucion",
+        "  └ openpyxl (dentro de la cadena)": "import openpyxl",
+        "app completa, lado padre (app.main)": "import app.main",
+        "  · fastapi (FUERA de la cadena)": "import fastapi",
         "intérprete pelado (referencia)": "pass",
     }
     resultados = []
@@ -294,8 +300,8 @@ def medir_concurrencia(contenido: bytes, grados: tuple[int, ...], etiqueta: str)
 
     from fastapi.testclient import TestClient
 
+    from app.core.admision import obtener_semaforo
     from app.core.configuracion import obtener_configuracion
-    from app.core.ejecucion import obtener_semaforo
     from app.main import crear_app
 
     def _olvidar_los_caches() -> None:
