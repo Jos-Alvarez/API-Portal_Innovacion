@@ -21,6 +21,8 @@ dev = [
     "ruff",
     "mypy",
     "types-openpyxl>=3.1.5.20260807",
+    "psutil>=7.2.2",
+    "types-psutil>=7.2.2.20260518",
 ]
 
 [build-system]
@@ -44,6 +46,11 @@ select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "T20"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106"]
+# `tools/` son herramientas de linea de comandos: imprimir por stdout es su
+# salida, no un `print` de depuracion olvidado. La prohibicion de T20 sigue
+# valiendo entera dentro de `app/`, que es donde importa -- ahi la bitacora
+# es el logging estructurado del item #14 y nada mas.
+"tools/**" = ["T20", "S101"]
 
 [tool.mypy]
 strict = true

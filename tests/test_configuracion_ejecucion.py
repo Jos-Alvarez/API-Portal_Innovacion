@@ -19,12 +19,19 @@ pytestmark = pytest.mark.usefixtures("limpiar_cache_configuracion")
 
 
 class TestEjecucionesMax:
-    def test_ausente_usa_el_placeholder_por_defecto(
+    def test_ausente_usa_el_valor_calibrado(
         self, token_sentinela: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Ya no es un placeholder: el ítem #17 lo movió de 2 a 4 con medición.
+
+        El pico real de una ejecución son ~51 MB, no los 256 MB que suponía el
+        valor anterior (`MEDICIONES.md`). El techo de producción sale de la
+        fórmula que documenta `app/core/configuracion.py`, contra una
+        instancia que todavía no existe.
+        """
         monkeypatch.delenv("EJECUCIONES_MAX", raising=False)
         configuracion = obtener_configuracion()
-        assert configuracion.ejecuciones_max == 2
+        assert configuracion.ejecuciones_max == 4
 
     def test_cero_falla(self, token_sentinela: str, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setenv("EJECUCIONES_MAX", "0")

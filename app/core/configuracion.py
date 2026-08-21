@@ -77,16 +77,33 @@ class Configuracion(BaseSettings):
     # Techo de ejecuciones concurrentes (el semáforo del ítem #8). `le=32`
     # es la única cota que importa hoy: por encima, el limitador de hilos
     # de anyio (40 por defecto) pasaría a ser el número real de
-    # concurrencia, no `EJECUCIONES_MAX` (design.md §4). `2` es un piso
-    # conservador -- un worker de API con dos hijos, cada uno hasta el
-    # presupuesto de 256 MB de ADR 0021 -- no una medición (ítem #17).
-    ejecuciones_max: Annotated[int, Field(ge=1, le=32)] = 2
+    # concurrencia, no `EJECUCIONES_MAX` (design.md §4).
+    #
+    # CALIBRADO por el ítem #17 (ver `MEDICIONES.md`). El `2` anterior era una
+    # estimación que suponía a cada hijo llegando al presupuesto de 256 MB de
+    # ADR 0021. Medido, el pico real de una ejecución es de ~51 MB: cuatro
+    # ejecuciones consumen ~204 MB, menos de la mitad de lo que aquel valor ya
+    # daba por aceptable.
+    #
+    # `4` sigue siendo conservador a propósito. El techo real lo ponen los
+    # NÚCLEOS y no la RAM —el hijo es CPU-bound parseando Excel—, así que el
+    # valor de producción sale de:
+    #
+    #     min(núcleos_lógicos, (RAM_disponible_MB - 512) / 64, 32)
+    #
+    # No se aplica esa fórmula acá porque la instancia de producción no existe
+    # todavía (prerrequisito #0) y calibrar contra el servidor de desarrollo
+    # sería cambiar una estimación por otra.
+    ejecuciones_max: Annotated[int, Field(ge=1, le=32)] = 4
 
-    # Plazo máximo del proceso hijo dedicado. `60s` es un placeholder
-    # conservador: el objetivo p95 es 15s (TECH-DESIGN.md:320), así que 60s
-    # deja 4x de margen sin exceder `CORTE_DEL_PORTAL` (ítem #17 calibra el
-    # valor real). `gt=timedelta()` cierra el piso; el techo lo cierra el
-    # validador de abajo contra `CORTE_DEL_PORTAL`.
+    # Plazo máximo del proceso hijo dedicado. `gt=timedelta()` cierra el piso;
+    # el techo lo cierra el validador de abajo contra `CORTE_DEL_PORTAL`.
+    #
+    # REVISADO por el ítem #17 y se deja igual, ahora con dato: el peor caso
+    # medido de punta a punta son 5,3 s (5 000 registros, `MEDICIONES.md`), así
+    # que 60 s dan más de 10x de margen y siguen estrictamente por debajo del
+    # corte de 2 minutos del portal. Dejar de ser un placeholder no exigía
+    # moverlo, sólo justificarlo.
     timeout_ejecucion: Annotated[
         timedelta, BeforeValidator(_segundos_o_iso8601), Field(gt=timedelta())
     ] = timedelta(seconds=60)

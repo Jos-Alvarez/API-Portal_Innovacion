@@ -30,8 +30,24 @@ uv sync                          # install dependencies
 uv run pytest                    # run the test suite with coverage
 uv run ruff check .              # lint
 uv run ruff format --check .     # format check
-uv run mypy app tests            # type check
+uv run mypy app tests tools      # type check
 ```
+
+## Measurement and calibration
+
+```
+FIXTURES_PARIDAD=<share> uv run python -m tools.medicion --repeticiones 15
+```
+
+Measures child-process startup cost, end-to-end p95, the child's memory
+footprint, and how latency degrades under concurrency. It is a **tool, not a
+test**: the numbers depend on the machine and its load, so nothing in the
+suite asserts a measured millisecond. `tests/test_rendimiento.py` guards the
+PRD's 15-second ceiling and the absence of heavy imports in the child's
+chain — order-of-magnitude regressions, not drift.
+
+Results from the reference run, plus the formula for `EJECUCIONES_MAX` on a
+real instance, are in `MEDICIONES.md`.
 
 ## Parity fixtures
 
