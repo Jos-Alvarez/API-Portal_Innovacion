@@ -87,6 +87,14 @@ _TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType(
             entradas_max=5,
             formatos_aceptados=_FORMATOS_DEL_PASSTHROUGH,
         ),
+        # Ítem #16. Un solo Excel por ejecución, que es exactamente lo que el
+        # script manual procesaba: `CONTRATO_POR_DEFECTO` ya lo describe sin
+        # cambiarle un campo. La fila existe igual, en vez de dejar que la
+        # clave caiga en el defecto, porque `obtener_contrato` devuelve `None`
+        # para una clave ausente y el chequeo de coherencia del ítem #11
+        # (`app/coherencia.py`) exige que toda entrada del registry tenga la
+        # suya.
+        "contado_carga": CONTRATO_POR_DEFECTO,
     }
 )
 

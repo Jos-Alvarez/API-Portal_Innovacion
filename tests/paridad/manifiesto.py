@@ -308,10 +308,17 @@ def exigir_pares(procesador: str, *, manifiesto: Path | None = None) -> list[Par
     referencia retocado falle por hash y no por contenido.
     """
     secciones = cargar_manifiesto(manifiesto)
+    # Sección AUSENTE es un error duro: o es un typo en el nombre del
+    # procesador, o alguien registró un procesador y se olvidó del manifiesto.
+    # Sección PRESENTE PERO VACÍA (`pares = []`) es otra cosa: una declaración
+    # deliberada de "este procesador existe y sus pares todavía no se
+    # produjeron", visible y revisable en el archivo. Eso es ausencia de
+    # fixtures, con la severidad que ADR 0015 le da: falla en CI, saltea acá.
     pares = secciones.get(procesador)
     _exigir(pares is not None, f"el manifiesto no tiene sección [{procesador}]")
     assert pares is not None
-    _exigir(pares, f"[{procesador}]: la sección no declara ningún par")
+    if not pares:
+        _sin_fixtures(f"[{procesador}] no declara ningún par en el manifiesto.")
 
     raiz = resolver_raiz()
     if raiz is None:

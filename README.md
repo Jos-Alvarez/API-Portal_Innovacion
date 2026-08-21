@@ -49,10 +49,16 @@ processor, named exactly like the manifest section:
 $FIXTURES_PARIDAD/contado_carga/01_entrada.xlsx  01_salida.xlsx  01_salida.txt
 ```
 
-**Nothing runs against parity fixtures today.** `manifiesto.toml` ships empty
-on purpose: `Contado_Carga`'s three real pairs have not been produced yet
-(backlog item #16). The machinery and its own tests are in place so that item
-#16 only has to fill in the manifest.
+**Nothing runs against parity fixtures today.** `manifiesto.toml` ships a
+`[contado_carga]` section with **zero pairs**, on purpose: the processor is
+implemented and behaviour-tested (`tests/test_procesador_contado_carga.py`),
+but its three real pairs have not been produced yet. Filling in the manifest
+is all that `tests/paridad/test_contado_carga.py` needs to start running.
+
+A section declared empty and a section that is missing are **not** the same
+thing. Empty means "this processor exists, its pairs are not ready" — that is
+absence of fixtures, so it skips locally and fails in CI. Missing means a typo
+or a processor whose manifest nobody wrote, and that fails everywhere.
 
 ### Adding a pair
 
@@ -87,8 +93,10 @@ interchangeable:
 | Situation | Local | CI |
 |---|---|---|
 | Malformed manifest, or a pair with incomplete provenance | **fail** | **fail** |
+| Manifest section missing for the processor | **fail** | **fail** |
 | `FIXTURES_PARIDAD` pointing inside the repository | **fail** | **fail** |
 | Fixture present but `sha256` does not match | **fail** | **fail** |
+| Section declared with zero pairs | skip, with a loud warning | **fail** |
 | Fixtures absent (variable unset, share not mounted) | skip, with a loud warning | **fail** |
 
 "CI" is detected through the conventional `CI` environment variable, which

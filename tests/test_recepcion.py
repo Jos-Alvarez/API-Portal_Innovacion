@@ -357,7 +357,11 @@ class TestRechazoAntesDeEscribir:
         assert captura_de_limpieza == {}
         assert _hijos_de_la_raiz() == []
 
-    @pytest.mark.parametrize("clave_procesador", ["contado_carga", "otra-clave", "123"])
+    # `contado_carga` estuvo acá como ejemplo de clave desconocida hasta que el
+    # ítem #16 la dio de alta de verdad. Se reemplaza por claves que no existen
+    # ni van a existir: lo que esta prueba afirma es que la clave NO cambia la
+    # forma del error, no que estas tres cadenas en particular fallen.
+    @pytest.mark.parametrize("clave_procesador", ["procesador-inventado", "otra-clave", "123"])
     def test_cualquier_clave_procesador_produce_el_mismo_error(
         self, cliente_de_prueba: TestClient, token_sentinela: str, clave_procesador: str
     ) -> None:

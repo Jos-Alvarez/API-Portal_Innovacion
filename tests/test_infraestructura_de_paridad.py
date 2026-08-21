@@ -99,16 +99,36 @@ def en_ci_simulado(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_el_manifiesto_del_repositorio_es_valido() -> None:
     """El archivo que viaja en el repo tiene que parsear y validar tal cual está."""
-    assert cargar_manifiesto() == {}
+    assert cargar_manifiesto() == {"contado_carga": []}
 
 
 def test_pedir_una_seccion_que_no_existe_es_un_fallo(fuera_de_ci: None) -> None:
-    """Hoy el manifiesto embarcado está vacío: el ítem #16 todavía no tiene sus pares.
+    """Sección ausente = typo o procesador sin manifiesto. Nunca un salto.
 
-    Que esto sea `ManifiestoInvalido` y no un salto es la diferencia entre "no
-    tengo los archivos a mano" y "el contrato de la prueba no existe".
+    Es la diferencia entre "el contrato de la prueba no existe" y "no tengo
+    los archivos a mano", y por eso no comparten severidad con
+    `test_una_seccion_declarada_vacia_saltea_fuera_de_ci`.
     """
     with pytest.raises(ManifiestoInvalido, match="no tiene sección"):
+        exigir_pares("procesador_que_no_existe")
+
+
+def test_una_seccion_declarada_vacia_saltea_fuera_de_ci(
+    fuera_de_ci: None, recwarn: pytest.WarningsRecorder
+) -> None:
+    """`[contado_carga] pares = []` dice "todavía no llegaron", no "está roto".
+
+    Es el estado real del repositorio hoy: el ítem #16 embarcó el módulo pero
+    sus tres pares reales no se produjeron.
+    """
+    with pytest.raises(pytest.skip.Exception):
+        exigir_pares("contado_carga")
+
+    assert any("PARIDAD NO VERIFICADA" in str(aviso.message) for aviso in recwarn)
+
+
+def test_una_seccion_declarada_vacia_falla_en_ci(en_ci_simulado: None) -> None:
+    with pytest.raises(pytest.fail.Exception, match="nunca un salto"):
         exigir_pares("contado_carga")
 
 

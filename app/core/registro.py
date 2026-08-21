@@ -63,6 +63,7 @@ NOMBRE_LOGGER: Final[str] = "app"
 
 EVENTO_EJECUCION: Final[str] = "ejecucion"
 EVENTO_SATURACION: Final[str] = "saturacion"
+EVENTO_DESCARTES: Final[str] = "descartes"
 
 # Techo de longitud para todo texto de origen no confiable (la ruta y la clave
 # que se recortan de ella). Acota el tamaño de la línea y, con él, el daño de
@@ -324,5 +325,55 @@ def registrar_saturacion(*, metodo: str, ruta: str, ejecuciones_max: int) -> Non
             "ruta_sin_validar": sanear_texto(ruta),
             "clave_sin_validar": clave_sin_validar_de_la_ruta(ruta),
             "ejecuciones_max": ejecuciones_max,
+        },
+    )
+
+
+def registrar_descartes(
+    *,
+    clave: str,
+    archivo: str,
+    filas_procesadas: int,
+    descartes: list[tuple[str, int]],
+) -> None:
+    """Emite la línea de las filas que un procesador descartó (ítem #16).
+
+    Tercer evento del módulo, con la misma forma que los otros dos: primitivos
+    sueltos, nada de objetos del dominio, `evento` como discriminador.
+
+    **La emite el proceso HIJO, no la ruta**, y eso tiene una consecuencia que
+    conviene saber antes de leer una bitácora: no comparte contexto con la
+    línea `ejecucion` que emite `app/recepcion.py`, así que las dos no están
+    correlacionadas más allá de `clave` y de su cercanía en el tiempo.
+    Correlacionarlas de verdad exigiría ensanchar el mensaje que cruza el
+    `Pipe` de ADR 0012 —hoy son exactamente tres formas cerradas— y eso es una
+    enmienda a esa frontera, no un detalle de este ítem.
+
+    El hijo hereda el `stderr` del padre, de modo que la línea sale por el
+    mismo flujo. Lo que el hijo NO hereda es la configuración de logging:
+    quien llame a esta función desde un procesador tiene que haber llamado
+    antes a `configurar_logging()`, siempre dentro del cuerpo de `procesar` y
+    nunca al importar.
+
+    `descartes` viaja como lista de `(motivo, fila)` en vez de un objeto del
+    dominio para no atar este módulo a ningún procesador: `app/core/` no sabe
+    que `app/procesadores/` existe (ADR 0011), y esta función vive en `core/`.
+    """
+    conteo: dict[str, int] = {}
+    for motivo, _fila in descartes:
+        conteo[motivo] = conteo.get(motivo, 0) + 1
+    obtener_logger().info(
+        "filas descartadas por el procesador",
+        extra={
+            "evento": EVENTO_DESCARTES,
+            "clave": sanear_texto(clave),
+            "archivo": sanear_texto(archivo),
+            "filas_procesadas": filas_procesadas,
+            "filas_descartadas": len(descartes),
+            "por_motivo": conteo,
+            # Las filas concretas, acotadas: el detalle completo ya viaja en
+            # `descartes.txt` dentro de la respuesta. Acá alcanza con una
+            # muestra para saber por dónde mirar sin inflar la bitácora.
+            "filas": [fila for _motivo, fila in descartes[:20]],
         },
     )

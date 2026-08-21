@@ -12,10 +12,19 @@
 # local. El procedimiento para dar de alta un par esta en el README, seccion
 # "Parity fixtures".
 #
-# Hoy no hay ninguna seccion poblada: los tres pares reales de Contado_Carga
-# todavia no llegaron (item #16 del BACKLOG, columna "Contexto extra
-# requerido"). El bloque comentado de abajo es la forma exacta que espera el
-# validador -- descomentar, completar y borrar este parrafo.
+# La seccion de contado_carga existe con CERO pares a proposito: es la
+# declaracion deliberada de "este procesador existe y sus tres pares reales
+# todavia no se produjeron" (item #16 del BACKLOG, columna "Contexto extra
+# requerido"). Con la seccion vacia la prueba de paridad falla en CI y saltea
+# en local con aviso; si la seccion faltara del todo seria un error duro, que
+# es lo que corresponde a un typo o a un procesador sin manifiesto.
+#
+# El bloque comentado de abajo es la forma exacta que espera el validador --
+# descomentar, completar y borrar el `pares = []`.
+
+[contado_carga]
+pares = []
+
 #
 # [[contado_carga.pares]]
 # id          = "01"
