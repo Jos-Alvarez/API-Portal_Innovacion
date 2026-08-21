@@ -1,22 +1,18 @@
 """Paridad de `Contado_Carga` contra los 3 pares reales (ítem #16; ADR 0015).
 
-**Hoy esta suite no verifica nada y lo dice a los gritos.** El manifiesto
-declara `[contado_carga]` con cero pares, así que `exigir_pares` saltea con
-aviso fuera de CI y falla dentro. Es el estado correcto: el módulo está
-embarcado y probado por comportamiento en
-`tests/test_procesador_contado_carga.py`, pero los tres pares reales todavía
-no se produjeron.
+**Estado: 1 par de los 3 que exige el PRD.** El par 01 se dio de alta el
+2026-08-20 a partir de un extracto real y la suite pasa contra él; faltan el
+02 y el 03. Con `FIXTURES_PARIDAD` sin definir —el caso normal en una máquina
+recién clonada— todo esto saltea con aviso, y falla en CI.
 
-Cuando lleguen, esta suite corre sola: se completan las filas del manifiesto
-y no hace falta tocar este archivo.
-
-**Antes de congelar los hashes hay que revisar los tres pares.** El
-TECH-DESIGN lo registra como riesgo abierto y es real: si alguno contiene una
-fila que el script viejo descartó en silencio, el módulo endurecido —haciendo
-exactamente lo correcto— va a producir una salida distinta a la esperada, y
-entonces hay que decidir explícitamente cuál de los dos requisitos manda. El
-`descartes.txt` que produzca la ejecución es justamente la evidencia para esa
-conversación.
+**El riesgo abierto del TECH-DESIGN quedó cerrado para el par 01, no en
+general.** Ese riesgo es real: si un par contiene una fila que el script viejo
+descartó en silencio, el módulo endurecido —haciendo exactamente lo correcto—
+produce una salida distinta a la esperada, y ahí hay que decidir cuál de los
+dos requisitos manda. Sobre el par 01 no pasa: 31 registros, cero descartes.
+`test_ningun_par_real_tiene_descartes` mantiene la guardia para los que
+vengan, y el `descartes.txt` de la ejecución es la evidencia de esa
+conversación si algún día se dispara.
 
 **El TXT se compara byte a byte y el Excel por contenido normalizado**, tal
 como fija ADR 0015: el TXT es el que carga la codificación y el fin de línea,

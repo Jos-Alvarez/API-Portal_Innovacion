@@ -12,29 +12,40 @@
 # local. El procedimiento para dar de alta un par esta en el README, seccion
 # "Parity fixtures".
 #
-# La seccion de contado_carga existe con CERO pares a proposito: es la
-# declaracion deliberada de "este procesador existe y sus tres pares reales
-# todavia no se produjeron" (item #16 del BACKLOG, columna "Contexto extra
-# requerido"). Con la seccion vacia la prueba de paridad falla en CI y saltea
-# en local con aviso; si la seccion faltara del todo seria un error duro, que
-# es lo que corresponde a un typo o a un procesador sin manifiesto.
-#
-# El bloque comentado de abajo es la forma exacta que espera el validador --
-# descomentar, completar y borrar el `pares = []`.
+# ESTADO: 1 par de 3. El PRD exige tres pares reales por procesador. El par 01
+# se dio de alta el 2026-08-20 a partir de un extracto real; faltan el 02 y el
+# 03. Con un solo par la suite corre y verifica de verdad, pero la exigencia
+# del PRD no esta cumplida todavia.
 
 [contado_carga]
-pares = []
 
-#
-# [[contado_carga.pares]]
-# id          = "01"
-# entrada     = { archivo = "01_entrada.xlsx", sha256 = "<64 hex en minuscula>" }
-# salida_xlsx = { archivo = "01_salida.xlsx",  sha256 = "<64 hex en minuscula>" }
-# salida_txt  = { archivo = "01_salida.txt",   sha256 = "<64 hex en minuscula>" }
-#
-#   [contado_carga.pares.procedencia]
-#   generado_por   = "Contado_Carga.py"
-#   version_script = "sha256:<64 hex del .py exacto que produjo esta salida>"
-#   generado_el    = 2026-08-14                      # fecha TOML nativa, no texto
-#   generado_en    = "Windows Server 2019 / Python 3.11.9"
-#   fin_de_linea   = "CRLF"                          # OBSERVADO del archivo, no asumido
+[[contado_carga.pares]]
+id          = "01"
+entrada     = { archivo = "01_entrada.xlsx", sha256 = "0b4eb8b80f55fac44303128bfbad105047020d6353739296e9fcb4518d5bef73" }
+salida_xlsx = { archivo = "01_salida.xlsx",  sha256 = "78ae3211f8a5da20b53abfc6cbdf784b9d542b646622d8ef24efac4832119a9f" }
+salida_txt  = { archivo = "01_salida.txt",   sha256 = "1fa5027f4553c56aceff4bad8b565979afdff296f1924246ba8a164ffc201c0d" }
+
+  # LEER ESTO ANTES DE CONFIAR EN EL PAR 01.
+  #
+  # Esta salida esperada NO es una salida historica recuperada del sistema que
+  # consume el TXT: se REGENERO el 2026-08-20 corriendo Contado_Carga.py sobre
+  # el extracto de entrada, en esta maquina y con las versiones que dice
+  # `generado_en`. Por lo tanto el par prueba que el modulo migrado coincide
+  # con el script TAL COMO ESTA HOY, no que coincida con lo que el consumidor
+  # viene recibiendo desde siempre.
+  #
+  # La diferencia importa porque `generado_en` no es decoracion: la salida se
+  # produjo con pandas 3.0.5, y las salidas historicas se generaron con la
+  # version que tuviera la maquina del autor. Un par recuperado del sistema
+  # destino cerraria ese hueco; este no lo cierra y por eso queda escrito.
+  #
+  # Lo que si quedo verificado sobre este par, y era la condicion que el
+  # TECH-DESIGN exigia antes de congelar hashes: el modulo endurecido procesa
+  # los 31 registros SIN UN SOLO DESCARTE. La paridad byte a byte y el
+  # endurecimiento obligatorio no se contradicen aca.
+  [contado_carga.pares.procedencia]
+  generado_por   = "Contado_Carga.py"
+  version_script = "sha256:cf8cf7734a2b882cb9600ba73b26b74e11b6de31a7b10292ad2224819cae5b96"
+  generado_el    = 2026-08-20
+  generado_en    = "Windows Server 2019 10.0.17763 / Python 3.12.0 / pandas 3.0.5 / openpyxl 3.1.5"
+  fin_de_linea   = "CRLF"                          # OBSERVADO: 124 CRLF, 0 LF sueltos

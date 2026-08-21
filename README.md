@@ -49,11 +49,17 @@ processor, named exactly like the manifest section:
 $FIXTURES_PARIDAD/contado_carga/01_entrada.xlsx  01_salida.xlsx  01_salida.txt
 ```
 
-**Nothing runs against parity fixtures today.** `manifiesto.toml` ships a
-`[contado_carga]` section with **zero pairs**, on purpose: the processor is
-implemented and behaviour-tested (`tests/test_procesador_contado_carga.py`),
-but its three real pairs have not been produced yet. Filling in the manifest
-is all that `tests/paridad/test_contado_carga.py` needs to start running.
+**`contado_carga` currently has 1 of the 3 pairs the PRD requires.** Pair
+`01` was registered on 2026-08-20 from a real extract, and the parity suite
+passes against it: the migrated module reproduces the legacy script's TXT
+**byte for byte** and its Excel by content. Pairs `02` and `03` are still
+missing, so the PRD's requirement is not met yet.
+
+Read the provenance comment on pair `01` in `manifiesto.toml` before trusting
+it: that expected output was **regenerated** from the current script, not
+recovered from the system that consumes the TXT. It proves the module matches
+the script as it stands today — not that it matches what the consumer has
+been receiving historically.
 
 A section declared empty and a section that is missing are **not** the same
 thing. Empty means "this processor exists, its pairs are not ready" — that is

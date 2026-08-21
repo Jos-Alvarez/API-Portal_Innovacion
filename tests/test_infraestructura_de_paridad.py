@@ -98,8 +98,18 @@ def en_ci_simulado(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_el_manifiesto_del_repositorio_es_valido() -> None:
-    """El archivo que viaja en el repo tiene que parsear y validar tal cual está."""
-    assert cargar_manifiesto() == {"contado_carga": []}
+    """El archivo que viaja en el repo parsea y valida tal cual está.
+
+    No se afirma cuántos pares hay: eso cambia cada vez que se da de alta uno
+    y no es lo que esta prueba cuida. Lo que cuida es que el manifiesto
+    embarcado nunca quede mal formado —un `sha256` recortado, una procedencia
+    a medias— porque eso rompe la suite de paridad entera, en CI y en local.
+    """
+    secciones = cargar_manifiesto()
+    assert "contado_carga" in secciones
+    for pares in secciones.values():
+        for par in pares:
+            assert par.procedencia.fin_de_linea in {"CRLF", "LF"}
 
 
 def test_pedir_una_seccion_que_no_existe_es_un_fallo(fuera_de_ci: None) -> None:
@@ -114,22 +124,28 @@ def test_pedir_una_seccion_que_no_existe_es_un_fallo(fuera_de_ci: None) -> None:
 
 
 def test_una_seccion_declarada_vacia_saltea_fuera_de_ci(
-    fuera_de_ci: None, recwarn: pytest.WarningsRecorder
+    tmp_path: Path, fuera_de_ci: None, recwarn: pytest.WarningsRecorder
 ) -> None:
-    """`[contado_carga] pares = []` dice "todavía no llegaron", no "está roto".
+    """`pares = []` dice "todavía no llegaron", no "está roto".
 
-    Es el estado real del repositorio hoy: el ítem #16 embarcó el módulo pero
-    sus tres pares reales no se produjeron.
+    Va contra un manifiesto sintético y no contra el embarcado: el del
+    repositorio tuvo la sección vacía sólo hasta que el par 01 se dio de alta,
+    y una prueba atada a ese estado transitorio habría empezado a pasar por el
+    motivo equivocado en cuanto llegara el segundo par.
     """
-    with pytest.raises(pytest.skip.Exception):
-        exigir_pares("contado_carga")
+    ruta = _manifiesto(tmp_path, "[contado_carga]\npares = []\n")
+
+    with pytest.raises(pytest.skip.Exception, match="no declara ningún par"):
+        exigir_pares("contado_carga", manifiesto=ruta)
 
     assert any("PARIDAD NO VERIFICADA" in str(aviso.message) for aviso in recwarn)
 
 
-def test_una_seccion_declarada_vacia_falla_en_ci(en_ci_simulado: None) -> None:
+def test_una_seccion_declarada_vacia_falla_en_ci(tmp_path: Path, en_ci_simulado: None) -> None:
+    ruta = _manifiesto(tmp_path, "[contado_carga]\npares = []\n")
+
     with pytest.raises(pytest.fail.Exception, match="nunca un salto"):
-        exigir_pares("contado_carga")
+        exigir_pares("contado_carga", manifiesto=ruta)
 
 
 # --- Severidad 1: el contrato del manifiesto falla siempre -------------------

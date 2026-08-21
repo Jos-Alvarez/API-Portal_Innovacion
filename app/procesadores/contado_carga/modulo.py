@@ -40,18 +40,19 @@ descartar la fila cuando no parsea. Parece un descuido del script original,
 pero corregirlo cambiaría **qué filas sobreviven** y por lo tanto la salida.
 Se migra el comportamiento observable, no la intención supuesta.
 
-**Dos cosas de este módulo están elegidas y no confirmadas, y hay que
-decirlo:**
+**Verificado contra un extracto real el 2026-08-20.** Sobre el par 01 del
+manifiesto de paridad —31 registros, cero descartes— este módulo produce un
+TXT **idéntico byte a byte** al del script y un Excel idéntico por contenido.
+Los seis nombres de `COLUMNAS` salen de la fila de encabezado de ese archivo.
 
-- `FIN_DE_LINEA` vale CRLF porque las salidas que el sistema destino viene
-  consumiendo se generaron en Windows. El BACKLOG lo registra como pendiente
-  de confirmar con ese sistema. Está acá, en una constante visible, para que
-  confirmarlo sea editar una línea.
-- De los seis nombres de columna, **tres salen textualmente de los comentarios
-  del script** (`Fe.contabilización`, `Importe en moneda doc`, `Texto`) y los
-  otros tres están **inferidos** de la convención SAP del resto. Están todos
-  juntos en `COLUMNAS` por eso: mirar la fila de encabezado de un Excel real
-  y corregir los que haga falta no toca ninguna otra línea de este archivo.
+**Lo que sigue sin confirmar, y no es lo mismo que lo anterior:**
+`FIN_DE_LINEA` vale CRLF porque es lo que el script emite en Windows y es lo
+que el sistema destino viene recibiendo. Eso está **observado** (124 CRLF,
+cero LF sueltos en la salida real), pero **no confirmado con el sistema que
+consume el TXT**: nadie del otro lado dijo todavía "necesito CRLF". Si el
+servicio termina desplegado en un contenedor Linux, la constante ya está fija
+y no hereda nada de la plataforma —que era el defecto a corregir—, pero el
+valor correcto sigue siendo una pregunta abierta para el consumidor.
 
 Este módulo importa la biblioteca estándar, `openpyxl` y —de `core/`— la
 interfaz, los tipos, los errores y el registro operativo. **No importa
@@ -108,22 +109,36 @@ class _Columnas:
     fecha_entrada: str
 
 
+# CONFIRMADOS contra la fila de encabezado de un extracto real
+# ("PARTIDAS ABIERTAS - CONTADO.XLSX", 15 columnas, hoja "Sheet1"). Las
+# posiciones coinciden exactamente con los `iloc` del script: 1, 2, 4, 8, 13
+# y 14.
+#
+# Tres de estos seis nombres estaban antes inferidos y los tres estaban mal;
+# el más instructivo es `importe`, que el comentario del script transcribe
+# como "Importe en moneda doc" **sin el punto final** que el encabezado real
+# sí lleva. Un carácter. Con la lectura por posición del script eso era
+# invisible; con lectura por nombre, la ejecución muere con
+# `columna_faltante` y nadie procesa nada con la columna equivocada. Ésa es
+# exactamente la diferencia que el endurecimiento del PRD vino a comprar.
 COLUMNAS: Final[_Columnas] = _Columnas(
-    # Los tres que el script nombra textualmente en sus comentarios.
     fecha_contabilizacion="Fe.contabilización",
-    importe="Importe en moneda doc",
-    texto="Texto",
-    # Los tres INFERIDOS de la convención SAP del resto. Confirmar contra la
-    # fila de encabezado de un Excel real (columnas C, E y O).
-    fecha_documento="Fe.documento",
+    fecha_documento="Fecha de documento",
     referencia="Referencia",
-    fecha_entrada="Fecha entrada",
+    importe="Importe en moneda doc.",
+    texto="Texto",
+    fecha_entrada="Fecha de entrada",
 )
 
 FIN_DE_LINEA: Final[str] = "\r\n"
-"""CRLF, fijado explícitamente (PRD, endurecimiento obligatorio). Elegido, no
-confirmado: es lo que emitía el script en Windows, que es lo que el sistema
-destino viene consumiendo. Ver la docstring del módulo."""
+"""CRLF, fijado explícitamente (PRD, endurecimiento obligatorio).
+
+**Observado, no confirmado.** La salida real del script sobre el extracto del
+par 01 trae 124 CRLF y cero LF sueltos, así que CRLF es lo que el sistema
+destino viene recibiendo. Lo que falta es que ese sistema confirme que lo
+*exige* (BACKLOG, contexto extra del ítem 16). Fijarlo acá ya cumple el
+requisito del PRD —el fin de línea no se hereda de la plataforma— y deja el
+cambio en una sola línea si la respuesta es otra."""
 
 CODIFICACION: Final[str] = "utf-8"
 HOJA_DE_SALIDA: Final[str] = "Contado Lima Expresa"
