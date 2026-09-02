@@ -76,7 +76,7 @@ from app.core.interfaz import Procesador
 from app.core.registro import configurar_logging, registrar_descartes
 from app.core.tipos import ArchivoEntrada, ArchivoSalida
 
-CLAVE: Final[str] = "contado_carga"
+CLAVE: Final[str] = "contado-carga"
 
 MAPEO_PLAZAS: Final[Mapping[str, int]] = MappingProxyType(
     {

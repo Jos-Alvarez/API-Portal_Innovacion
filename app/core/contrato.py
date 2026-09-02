@@ -94,7 +94,7 @@ _TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType(
         # para una clave ausente y el chequeo de coherencia del ítem #11
         # (`app/coherencia.py`) exige que toda entrada del registry tenga la
         # suya.
-        "contado_carga": CONTRATO_POR_DEFECTO,
+        "contado-carga": CONTRATO_POR_DEFECTO,
     }
 )
 

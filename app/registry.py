@@ -44,5 +44,5 @@ from app.procesadores.passthrough.modulo import Passthrough
 REGISTRY: dict[str, Procesador] = {
     "passthrough": Passthrough(clave="passthrough"),
     "passthrough_multi": Passthrough(clave="passthrough_multi"),
-    "contado_carga": ContadoCarga(),
+    "contado-carga": ContadoCarga(),
 }
