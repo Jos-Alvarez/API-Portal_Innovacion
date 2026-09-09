@@ -300,7 +300,7 @@ def test_el_descarte_se_registra_en_el_log(
         procesador.procesar([entrada])
 
     (registro,) = [r for r in caplog.records if getattr(r, "evento", None) == "descartes"]
-    assert registro.clave == "contado_carga"  # type: ignore[attr-defined]
+    assert registro.clave == "contado-carga"  # type: ignore[attr-defined]
     assert registro.filas_descartadas == 1  # type: ignore[attr-defined]
     assert registro.filas_procesadas == 1  # type: ignore[attr-defined]
     assert registro.por_motivo == {MOTIVO_PLAZA: 1}  # type: ignore[attr-defined]
@@ -454,11 +454,11 @@ def test_la_clave_coincide_con_el_registry() -> None:
     from app.core.contrato import obtener_contrato
     from app.registry import REGISTRY
 
-    procesador = REGISTRY["contado_carga"]
-    assert procesador.clave == "contado_carga"
+    procesador = REGISTRY["contado-carga"]
+    assert procesador.clave == "contado-carga"
     assert isinstance(procesador, ContadoCarga)
 
-    contrato = obtener_contrato("contado_carga")
+    contrato = obtener_contrato("contado-carga")
     assert contrato is not None
     assert contrato.entradas_min == 1
     assert contrato.entradas_max == 1
@@ -482,7 +482,7 @@ class TestPuntaAPunta:
     @staticmethod
     def _subir(cliente: Any, contenido: bytes) -> Any:
         return cliente.post(
-            "/interno/procesadores/contado_carga",
+            "/interno/procesadores/contado-carga",
             files={"archivos": ("contado.xlsx", contenido, "application/octet-stream")},
             headers={"Authorization": "Bearer sentinela-token-de-pruebas-3f9c2a"},
         )

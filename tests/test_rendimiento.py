@@ -76,7 +76,7 @@ def test_una_ejecucion_completa_entra_en_el_techo_del_prd(token_sentinela: str) 
     with TestClient(crear_app()) as cliente:
         inicio = time.perf_counter()
         respuesta = cliente.post(
-            "/interno/procesadores/contado_carga",
+            "/interno/procesadores/contado-carga",
             files={"archivos": ("contado.xlsx", contenido, "application/octet-stream")},
             headers={"Authorization": f"Bearer {token_sentinela}"},
         )
