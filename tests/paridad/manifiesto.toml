@@ -161,3 +161,37 @@ salida_xlsx = { archivo = "07_salida.xlsx",  sha256 = "14eadb8f2a6bef0f3ea95075e
   generado_el    = 2025-08-26
   generado_en    = "desconocido: salida historica de la maquina del autor (EFECTIVO)"
   fin_de_linea   = "no_aplica"
+
+# --- prepago_carga -----------------------------------------------------------
+#
+# ESTADO: 1 par de 3. La entrada es el extracto real "TRANSFERENCIAS ENTRE
+# CUENTAS.xlsx" (febrero de 2026, 33 registros) y las salidas son las
+# HISTORICAS que el script produjo el 2026-03-20, no regeneradas. La salida
+# xlsx llego renombrada "resultado_transferenciasxx.xlsx" (el usuario le
+# agrego "xx"); su contenido y sus metadatos (creado 2026-03-20T17:47:20Z por
+# openpyxl 3.1.5) son los de la corrida.
+#
+# LEER ESTO ANTES DE CONFIAR EN EL PAR 01.
+#
+# - `version_script` es el hash del Prepago_Carga.py entregado junto con las
+#   salidas (modificado por ultima vez el 2026-03-20, cuatro minutos antes de
+#   la corrida). La evidencia de que es el que corrio es la paridad: TXT
+#   identico byte a byte y Excel identico celda por celda, con tipos.
+# - `generado_en` es desconocido: la version de pandas de la maquina del autor
+#   no quedo registrada.
+# - Cero descartes y los 33 registros cuadran (salida = entrada + comision).
+
+[prepago_carga]
+
+[[prepago_carga.pares]]
+id          = "01"
+entrada     = { archivo = "01_entrada.xlsx", sha256 = "4641d48c5584a9b194ff463e7f643b2568f93d96b52ee1496051ef5d09595a18" }
+salida_xlsx = { archivo = "01_salida.xlsx",  sha256 = "6f8c2c687b899d460f0179f7e6551598e2f67aeff894b5c5975cb10387d5b5c3" }
+salida_txt  = { archivo = "01_salida.txt",   sha256 = "33a650f07068b7a10f3c46ca446d67b427e1418b53d7bde90fad46d44458580c" }
+
+  [prepago_carga.pares.procedencia]
+  generado_por   = "Prepago_Carga.py"
+  version_script = "sha256:b9a7823b4f406413dba4dcb2a70d70a2011cf85b0a862465c177b7997494f68f"
+  generado_el    = 2026-03-20
+  generado_en    = "desconocido: salida historica de la maquina del autor (openpyxl 3.1.5 segun docProps)"
+  fin_de_linea   = "CRLF"                          # OBSERVADO: 141 CRLF, 0 LF sueltos

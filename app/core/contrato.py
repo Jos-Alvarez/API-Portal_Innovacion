@@ -101,6 +101,9 @@ _TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType(
         # (`tipo_duplicado`), no esta fila. Los techos de tamaño quedan en el
         # valor por defecto.
         "asientos-contables": replace(CONTRATO_POR_DEFECTO, entradas_min=1, entradas_max=7),
+        # Un solo Excel de transferencias entre cuentas por ejecución, como el
+        # script manual: el mismo caso que `contado-carga`, sin cambiar un campo.
+        "prepago-carga": CONTRATO_POR_DEFECTO,
     }
 )
 

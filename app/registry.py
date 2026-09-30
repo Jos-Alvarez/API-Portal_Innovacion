@@ -41,10 +41,12 @@ from app.core.interfaz import Procesador
 from app.procesadores.asientos_contables.modulo import AsientosContables
 from app.procesadores.contado_carga.modulo import ContadoCarga
 from app.procesadores.passthrough.modulo import Passthrough
+from app.procesadores.prepago_carga.modulo import PrepagoCarga
 
 REGISTRY: dict[str, Procesador] = {
     "passthrough": Passthrough(clave="passthrough"),
     "passthrough_multi": Passthrough(clave="passthrough_multi"),
     "contado-carga": ContadoCarga(),
     "asientos-contables": AsientosContables(),
+    "prepago-carga": PrepagoCarga(),
 }
