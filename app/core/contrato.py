@@ -95,6 +95,12 @@ _TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType(
         # (`app/coherencia.py`) exige que toda entrada del registry tenga la
         # suya.
         "contado-carga": CONTRATO_POR_DEFECTO,
+        # Un Excel por tipo de medio de pago (AMEX, DINNERS, MASTERCARD,
+        # SAFETYPAY, VISA, IZIPAY, EFECTIVO) en una sola ventana del portal:
+        # de uno a siete. Dos del mismo tipo los rechaza el módulo
+        # (`tipo_duplicado`), no esta fila. Los techos de tamaño quedan en el
+        # valor por defecto.
+        "asientos-contables": replace(CONTRATO_POR_DEFECTO, entradas_min=1, entradas_max=7),
     }
 )
 

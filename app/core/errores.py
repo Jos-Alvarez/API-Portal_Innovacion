@@ -63,9 +63,29 @@ class ContextoTamanoTotal(TypedDict):
     recibido_bytes: int
 
 
+MotivoContenido = Literal[
+    "columna_faltante",
+    "cero_filas",
+    "hoja_faltante",
+    "tipo_no_reconocido",
+    "tipo_duplicado",
+]
+"""Motivos cerrados de `ContextoContenido`.
+
+Los tres últimos los agregó la migración de `AsientosContables_Carga`: es el
+primer procesador que lee un libro de varias hojas y recibe varios archivos
+por ejecución. La FORMA del contexto no cambió: `hoja_faltante` reutiliza
+`columna` para nombrar la hoja ausente, y `tipo_no_reconocido` /
+`tipo_duplicado` la dejan en `None`.
+"""
+
+
 class ContextoContenido(TypedDict):
+    """`columna` lleva la columna faltante con `columna_faltante`, la HOJA
+    faltante con `hoja_faltante`, y `None` con cualquier otro motivo."""
+
     archivo: str
-    motivo: Literal["columna_faltante", "cero_filas"]
+    motivo: MotivoContenido
     columna: str | None
 
 
@@ -206,7 +226,7 @@ class ErrorContenido(ErrorTipificado):
         self,
         *,
         archivo: str,
-        motivo: Literal["columna_faltante", "cero_filas"],
+        motivo: MotivoContenido,
         columna: str | None,
     ) -> None:
         super().__init__()
@@ -219,6 +239,21 @@ class ErrorContenido(ErrorTipificado):
     @classmethod
     def cero_filas(cls, *, archivo: str) -> ErrorContenido:
         return cls(archivo=archivo, motivo="cero_filas", columna=None)
+
+    @classmethod
+    def hoja_faltante(cls, *, archivo: str, hoja: str) -> ErrorContenido:
+        """Falta una hoja obligatoria. Su nombre viaja en `columna` (ver `MotivoContenido`)."""
+        return cls(archivo=archivo, motivo="hoja_faltante", columna=hoja)
+
+    @classmethod
+    def tipo_no_reconocido(cls, *, archivo: str) -> ErrorContenido:
+        """El procesador no pudo decidir qué clase de archivo es éste."""
+        return cls(archivo=archivo, motivo="tipo_no_reconocido", columna=None)
+
+    @classmethod
+    def tipo_duplicado(cls, *, archivo: str) -> ErrorContenido:
+        """Otro archivo de la misma ejecución ya resolvió al mismo tipo."""
+        return cls(archivo=archivo, motivo="tipo_duplicado", columna=None)
 
     @classmethod
     def sin_salidas(cls) -> ErrorContenido:

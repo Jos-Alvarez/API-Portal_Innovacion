@@ -50,14 +50,16 @@ sentence, phrase, or any string assembled by the service for a human reader.
 |---|---|---|
 | `formato` | `{archivo: str, formato_recibido: str, formatos_aceptados: list[str]}` | 422 |
 | `tamano` (ADR 0014, fixed verbatim) | `{archivo: str, limite_bytes: int, recibido_bytes: int}` | 422 |
-| `contenido` | `{archivo: str, motivo: "columna_faltante"\|"cero_filas", columna: str\|None}` | 422 |
+| `contenido` | `{archivo: str, motivo: "columna_faltante"\|"cero_filas"\|"hoja_faltante"\|"tipo_no_reconocido"\|"tipo_duplicado", columna: str\|None}` | 422 |
 | `cantidad` | `{minimo: int, maximo: int, recibido: int}` | 422 |
 | `clave_inexistente` (fila) | `{clave_procesador: str, causa: "fila_ausente"\|"fila_inactiva"}` | 500 |
 | `clave_inexistente` (desync) | `{clave_procesador: str, causa: "no_en_registry"\|"no_en_bd"}` | 500 |
 
-For `contenido`, `columna` MUST be populated only when `motivo` is `"columna_faltante"`; it MUST
-be `None` for `"cero_filas"`. Both `clave_inexistente` rows share `tipo: "clave_inexistente"` and
-distinguish their cause only through `causa`, never a sixth `tipo` value.
+For `contenido`, `columna` MUST be populated only when `motivo` is `"columna_faltante"` (the
+missing column) or `"hoja_faltante"` (the missing SHEET — the shape is reused, not widened); it
+MUST be `None` for `"cero_filas"`, `"tipo_no_reconocido"` and `"tipo_duplicado"`. The last three
+motivos were added by the `asientos-contables` migration (2026-09-30). Both `clave_inexistente`
+rows share `tipo: "clave_inexistente"` and distinguish their cause only through `causa`, never a sixth `tipo` value.
 
 #### Scenario: Each condition returns its documented shape and status
 - GIVEN each of the six error conditions raised via the test-only router

@@ -35,11 +35,12 @@ packages = ["app"]
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-# Contado_Carga.py es un script legacy anterior a este cambio, fuera de
-# alcance del paquete `app`; no se relinta como parte del esqueleto.
+# Contado_Carga.py y AsientosContables_Carga.py son scripts legacy, fuera de
+# alcance del paquete `app`: se conservan tal cual como referencia de sus
+# migraciones y no se relintan.
 # openspec/ contiene artefactos SDD (incl. bloques de codigo en Markdown)
 # que no son parte del codigo fuente y no deben reformatearse.
-extend-exclude = ["Contado_Carga.py", "openspec"]
+extend-exclude = ["Contado_Carga.py", "AsientosContables_Carga.py", "openspec"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "ASYNC", "T20"]

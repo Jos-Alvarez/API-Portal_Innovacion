@@ -60,7 +60,10 @@ VARIABLE_DE_UBICACION: Final[str] = "FIXTURES_PARIDAD"
 
 _HASH: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 _VERSION_DE_SCRIPT: Final[re.Pattern[str]] = re.compile(r"^sha256:[0-9a-f]{64}$")
-_FINES_DE_LINEA: Final[frozenset[str]] = frozenset({"CRLF", "LF"})
+_FINES_DE_LINEA: Final[frozenset[str]] = frozenset({"CRLF", "LF", "no_aplica"})
+"""`no_aplica` existe para los pares cuyas salidas son sólo `.xlsx`
+(`asientos_contables`): un libro de Excel no tiene fin de línea que observar,
+y escribir CRLF ahí sería afirmar algo que nadie midió."""
 _CAMPOS_DE_PROCEDENCIA: Final[tuple[str, ...]] = (
     "generado_por",
     "version_script",

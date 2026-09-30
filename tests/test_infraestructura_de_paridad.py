@@ -109,7 +109,7 @@ def test_el_manifiesto_del_repositorio_es_valido() -> None:
     assert "contado_carga" in secciones
     for pares in secciones.values():
         for par in pares:
-            assert par.procedencia.fin_de_linea in {"CRLF", "LF"}
+            assert par.procedencia.fin_de_linea in {"CRLF", "LF", "no_aplica"}
 
 
 def test_pedir_una_seccion_que_no_existe_es_un_fallo(fuera_de_ci: None) -> None:

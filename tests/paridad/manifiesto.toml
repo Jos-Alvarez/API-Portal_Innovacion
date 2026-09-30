@@ -49,3 +49,115 @@ salida_txt  = { archivo = "01_salida.txt",   sha256 = "1fa5027f4553c56aceff4bad8
   generado_el    = 2026-08-20
   generado_en    = "Windows Server 2019 10.0.17763 / Python 3.12.0 / pandas 3.0.5 / openpyxl 3.1.5"
   fin_de_linea   = "CRLF"                          # OBSERVADO: 124 CRLF, 0 LF sueltos
+
+# --- asientos_contables ------------------------------------------------------
+#
+# ESTADO: 7 pares, uno por tipo (AMEX, DINNERS, MASTERCARD, SAFETYPAY, VISA,
+# IZIPAY, EFECTIVO). Las entradas son las planillas reales de agosto de 2025
+# (EFECTIVO: julio) y las salidas son las HISTORICAS que el script produjo el
+# 2025-08-26, no regeneradas. Cada entrada se renombra NN_entrada.xlsx en el
+# recurso compartido; el tipo se detecta por las hojas, no por el nombre.
+#
+# LEER ESTO ANTES DE CONFIAR EN ESTOS PARES.
+#
+# - `version_script` es el hash del AsientosContables_Carga.py que se entrego
+#   junto con estas salidas, no una version registrada en el momento de la
+#   corrida: el script manual no esta versionado. La evidencia de que es el
+#   mismo es indirecta pero fuerte: el modulo migrado reproduce las siete
+#   salidas CELDA POR CELDA, con igualdad exacta (tolerancia cero), en las 20
+#   hojas.
+# - `generado_en` es desconocido: la version de pandas de la maquina del autor
+#   no quedo registrada.
+# - La fecha de cierre de casi todas las cabeceras es el DIA DE LA CORRIDA
+#   (`datetime.now()` del script). La prueba de paridad fija el reloj del
+#   modulo en `generado_el`; por eso ese campo es load-bearing aca.
+# - `fin_de_linea = "no_aplica"`: las salidas son solo .xlsx.
+# - DINNERS pesa 50,7 MB (65 MB de dibujos incrustados) y supera el techo de
+#   25 MB del contrato por defecto: por HTTP hoy se rechaza con 422 `tamano`.
+#   La paridad llama a `procesar` directo y no pasa por ese techo.
+
+[asientos_contables]
+
+[[asientos_contables.pares]]
+id          = "01"
+entrada     = { archivo = "01_entrada.xlsx", sha256 = "d5ff6dea2416348e25644ee1c5a3e183ea2e25fe71f25dd6b038959d245ea627" }
+salida_xlsx = { archivo = "01_salida.xlsx",  sha256 = "7f026c13d3db93a3a2eb2c3335cd716d6393582d8e6532a7c8b43e79cb53ba4c" }
+
+  [asientos_contables.pares.procedencia]
+  generado_por   = "AsientosContables_Carga.py"
+  version_script = "sha256:d7140ac6617970e5599ec7b1aae8427fdff1ce3690c272cee8ffabe2fd58e55f"
+  generado_el    = 2025-08-26
+  generado_en    = "desconocido: salida historica de la maquina del autor (AMEX)"
+  fin_de_linea   = "no_aplica"
+
+[[asientos_contables.pares]]
+id          = "02"
+entrada     = { archivo = "02_entrada.xlsx", sha256 = "123a818294648ce8464c699cf2d321c081976cedf7ef9e19bb393d954601ea96" }
+salida_xlsx = { archivo = "02_salida.xlsx",  sha256 = "920ec8408214edd54fd3703ed633748eb80adc8c7e4b40bb2866c187cd91bdca" }
+
+  [asientos_contables.pares.procedencia]
+  generado_por   = "AsientosContables_Carga.py"
+  version_script = "sha256:d7140ac6617970e5599ec7b1aae8427fdff1ce3690c272cee8ffabe2fd58e55f"
+  generado_el    = 2025-08-26
+  generado_en    = "desconocido: salida historica de la maquina del autor (DINNERS)"
+  fin_de_linea   = "no_aplica"
+
+[[asientos_contables.pares]]
+id          = "03"
+entrada     = { archivo = "03_entrada.xlsx", sha256 = "0add5853c9399a3a73d116aedead6f5eabb547be24e51a61bf268ca49731cb04" }
+salida_xlsx = { archivo = "03_salida.xlsx",  sha256 = "03cc7127d142ec3a0351af5a97664292b53af992483d4b9ff1b7829659ccf2e8" }
+
+  [asientos_contables.pares.procedencia]
+  generado_por   = "AsientosContables_Carga.py"
+  version_script = "sha256:d7140ac6617970e5599ec7b1aae8427fdff1ce3690c272cee8ffabe2fd58e55f"
+  generado_el    = 2025-08-26
+  generado_en    = "desconocido: salida historica de la maquina del autor (MASTERCARD)"
+  fin_de_linea   = "no_aplica"
+
+[[asientos_contables.pares]]
+id          = "04"
+entrada     = { archivo = "04_entrada.xlsx", sha256 = "448133320da274f7acf41550b15fddf007d2805196f01cd31189f3cee003e946" }
+salida_xlsx = { archivo = "04_salida.xlsx",  sha256 = "e120c1d195d6fe70b0f28387f4adddc20f0c626013189bbe210542eba7b21483" }
+
+  [asientos_contables.pares.procedencia]
+  generado_por   = "AsientosContables_Carga.py"
+  version_script = "sha256:d7140ac6617970e5599ec7b1aae8427fdff1ce3690c272cee8ffabe2fd58e55f"
+  generado_el    = 2025-08-26
+  generado_en    = "desconocido: salida historica de la maquina del autor (SAFETYPAY)"
+  fin_de_linea   = "no_aplica"
+
+[[asientos_contables.pares]]
+id          = "05"
+entrada     = { archivo = "05_entrada.xlsx", sha256 = "d09602eb119efcb1d9861612e374110f4bae1a9255790a7da7f6a441cf64261c" }
+salida_xlsx = { archivo = "05_salida.xlsx",  sha256 = "f98232638167fd04252ef78b55621117a31d2ebe63cdb573eabf118624dcced9" }
+
+  [asientos_contables.pares.procedencia]
+  generado_por   = "AsientosContables_Carga.py"
+  version_script = "sha256:d7140ac6617970e5599ec7b1aae8427fdff1ce3690c272cee8ffabe2fd58e55f"
+  generado_el    = 2025-08-26
+  generado_en    = "desconocido: salida historica de la maquina del autor (VISA)"
+  fin_de_linea   = "no_aplica"
+
+[[asientos_contables.pares]]
+id          = "06"
+entrada     = { archivo = "06_entrada.xlsx", sha256 = "4953104fe5df333c72d7b3f40060e89b5616c12e3227a6bd0b9d79d6d6021815" }
+salida_xlsx = { archivo = "06_salida.xlsx",  sha256 = "0a3ec82bff4806756f6f97f1ffed4e4d53565360edbe64fea514350ce2efac7f" }
+
+  [asientos_contables.pares.procedencia]
+  generado_por   = "AsientosContables_Carga.py"
+  version_script = "sha256:d7140ac6617970e5599ec7b1aae8427fdff1ce3690c272cee8ffabe2fd58e55f"
+  generado_el    = 2025-08-26
+  generado_en    = "desconocido: salida historica de la maquina del autor (IZIPAY)"
+  fin_de_linea   = "no_aplica"
+
+[[asientos_contables.pares]]
+id          = "07"
+entrada     = { archivo = "07_entrada.xlsx", sha256 = "7b8a5279a9698570e0ab7c8642c7fc5f447bc49fe324e6bc0a598caec5614af8" }
+salida_xlsx = { archivo = "07_salida.xlsx",  sha256 = "14eadb8f2a6bef0f3ea95075e0c3917e87aa6217d467b455e70f09832363379b" }
+
+  [asientos_contables.pares.procedencia]
+  generado_por   = "AsientosContables_Carga.py"
+  version_script = "sha256:d7140ac6617970e5599ec7b1aae8427fdff1ce3690c272cee8ffabe2fd58e55f"
+  generado_el    = 2025-08-26
+  generado_en    = "desconocido: salida historica de la maquina del autor (EFECTIVO)"
+  fin_de_linea   = "no_aplica"
