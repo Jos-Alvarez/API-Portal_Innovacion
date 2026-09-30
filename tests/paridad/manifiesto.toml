@@ -195,3 +195,38 @@ salida_txt  = { archivo = "01_salida.txt",   sha256 = "33a650f07068b7a10f3c46ca4
   generado_el    = 2026-03-20
   generado_en    = "desconocido: salida historica de la maquina del autor (openpyxl 3.1.5 segun docProps)"
   fin_de_linea   = "CRLF"                          # OBSERVADO: 141 CRLF, 0 LF sueltos
+
+# --- registro_sencillo -------------------------------------------------------
+#
+# ESTADO: 1 par de 3. La entrada es el extracto real "TRANSFERENCIAS ENTRE
+# CUENTAS.xlsx" de peaje sencillo (septiembre de 2026, 10 registros) y la
+# salida es la HISTORICA que el script produjo el 2026-09-14, no regenerada.
+# El script produce solo el TXT: no hay salida_xlsx.
+#
+# LEER ESTO ANTES DE CONFIAR EN EL PAR 01.
+#
+# - `version_script` es el hash del Registro_Sencillo.py entregado junto con
+#   la salida (modificado por ultima vez el 2026-09-14 12:18 -05, diez minutos
+#   antes de la salida). La evidencia de que es el que corrio es la paridad:
+#   TXT identico byte a byte.
+# - `generado_el` sale de la fecha de modificacion del TXT historico; el
+#   script no deja otra marca.
+# - `generado_en` es desconocido: la version de pandas de la maquina del autor
+#   no quedo registrada.
+# - Cero descartes. El par ejercita tres ramas de la glosa (salida IBK,
+#   entrada IBK, entrada BBVA); las de salida BBVA y la de por defecto solo
+#   las cubren las pruebas sinteticas.
+
+[registro_sencillo]
+
+[[registro_sencillo.pares]]
+id          = "01"
+entrada     = { archivo = "01_entrada.xlsx", sha256 = "892edb0ca74a2db7972ebd7a3dbca99c0a5cd1c1b6fcf76103ffb2603b23f279" }
+salida_txt  = { archivo = "01_salida.txt",   sha256 = "dba10fef2cccfd71cc2d19dc8f215b2679a3305bffdb69bd0cc476e55cb568ef" }
+
+  [registro_sencillo.pares.procedencia]
+  generado_por   = "Registro_Sencillo.py"
+  version_script = "sha256:7b821c0eebcc0ac2dc4e3736de78d24ffe624173d56384792873831e5a4b01cc"
+  generado_el    = 2026-09-14
+  generado_en    = "desconocido: salida historica de la maquina del autor"
+  fin_de_linea   = "CRLF"                          # OBSERVADO: 40 CRLF, 0 LF sueltos

@@ -104,6 +104,9 @@ _TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType(
         # Un solo Excel de transferencias entre cuentas por ejecución, como el
         # script manual: el mismo caso que `contado-carga`, sin cambiar un campo.
         "prepago-carga": CONTRATO_POR_DEFECTO,
+        # Un solo Excel de transferencias de peaje sencillo por ejecución, como el
+        # script manual: el mismo caso que `prepago-carga`, sin cambiar un campo.
+        "registro-sencillo": CONTRATO_POR_DEFECTO,
     }
 )
 
