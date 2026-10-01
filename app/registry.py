@@ -40,6 +40,8 @@ from __future__ import annotations
 from app.core.interfaz import Procesador
 from app.procesadores.asientos_contables.modulo import AsientosContables
 from app.procesadores.contado_carga.modulo import ContadoCarga
+from app.procesadores.flujo_caja_ingresos.modulo import FlujoCajaIngresos
+from app.procesadores.flujo_caja_pagos.modulo import FlujoCajaPagos
 from app.procesadores.passthrough.modulo import Passthrough
 from app.procesadores.prepago_carga.modulo import PrepagoCarga
 from app.procesadores.registro_sencillo.modulo import RegistroSencillo
@@ -51,4 +53,6 @@ REGISTRY: dict[str, Procesador] = {
     "asientos-contables": AsientosContables(),
     "prepago-carga": PrepagoCarga(),
     "registro-sencillo": RegistroSencillo(),
+    "flujo-caja-ingresos": FlujoCajaIngresos(),
+    "flujo-caja-pagos": FlujoCajaPagos(),
 }

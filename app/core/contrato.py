@@ -107,6 +107,23 @@ _TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType(
         # Un solo Excel de transferencias de peaje sencillo por ejecución, como el
         # script manual: el mismo caso que `prepago-carga`, sin cambiar un campo.
         "registro-sencillo": CONTRATO_POR_DEFECTO,
+        # Los libros de cuentas Fideicomisas y Operativas en una sola ventana del
+        # portal: uno o los dos. Dos del mismo tipo los rechaza el módulo
+        # (`tipo_duplicado`), no esta fila. Los techos de tamaño quedan en el
+        # valor por defecto.
+        "flujo-caja-ingresos": replace(CONTRATO_POR_DEFECTO, entradas_min=1, entradas_max=2),
+        # Los libros semanales de pagos programados (LIMA EXPRESA y PEX) en una
+        # sola ventana del portal. Son libros con macros (`.xlsm`), el primer
+        # formato de este tipo que acepta el servicio; `xlsx` se acepta también
+        # porque el contenido es el mismo. Varios del mismo tipo son lo normal
+        # (uno por semana): diez es un techo holgado para un mes, no una regla
+        # del script. Los techos de tamaño quedan en el valor por defecto.
+        "flujo-caja-pagos": replace(
+            CONTRATO_POR_DEFECTO,
+            entradas_min=1,
+            entradas_max=10,
+            formatos_aceptados=("xlsm", "xlsx"),
+        ),
     }
 )
 

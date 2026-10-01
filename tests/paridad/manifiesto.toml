@@ -230,3 +230,93 @@ salida_txt  = { archivo = "01_salida.txt",   sha256 = "dba10fef2cccfd71cc2d19dc8
   generado_el    = 2026-09-14
   generado_en    = "desconocido: salida historica de la maquina del autor"
   fin_de_linea   = "CRLF"                          # OBSERVADO: 40 CRLF, 0 LF sueltos
+
+# --- flujo_caja_ingresos -----------------------------------------------------
+#
+# ESTADO: 1 par. Es el primer par con DOS entradas y DOS salidas: el
+# procesador reemplaza a dos scripts que se corrian uno detras del otro sobre
+# la misma carpeta. Las entradas son los libros reales "LAMSAC - Mov Ctas
+# Fideicomisas 2025 FL.xlsx" y "LAMSAC - Mov Ctas Operativas 2025
+# FL_ffff.xlsx" (movimientos hasta el 24 y el 22 de julio de 2025) y las
+# salidas son las HISTORICAS, no regeneradas. En el recurso compartido se
+# renombran 01_entrada_fideicomisas.xlsx, 01_entrada_operativas.xlsx,
+# 01_salida_consolidado.xlsx y 01_salida_banco_nacion.xlsx. El contrato del
+# manifiesto ya admitia varios papeles `entrada*` / `salida*` por par: no
+# hubo que tocar manifiesto.py.
+#
+# LEER ESTO ANTES DE CONFIAR EN ESTE PAR.
+#
+# - Dos scripts, un solo `version_script`: el campo admite un unico hash y
+#   lleva el de flujoCaja_consolida_Ingresos.py. El de flujoCaja_BancoNacion.py
+#   es sha256:94cf1d79e843c58cd396b65e937942e7198c03ef854b457b824b72a694a50721.
+# - Dos corridas, un solo `generado_el`: Banco_Nacion.xlsx se genero el
+#   2025-08-08 12:58 y Consolidado_Ingresos.xlsx el 2025-08-11 15:25 (fechas
+#   de modificacion y docProps). Se registra la ultima. Ninguna salida depende
+#   del reloj.
+# - flujoCaja_BancoNacion.py tiene fecha de modificacion 2025-08-08 15:36,
+#   POSTERIOR a su salida. La evidencia de que las reglas son las mismas es
+#   doble: el script re-ejecutado hoy (pandas 3.0.6, numpy 2.4.2) reproduce las
+#   dos salidas historicas celda por celda, y el modulo tambien.
+# - `generado_en` es desconocido: la version de pandas de la maquina del autor
+#   no quedo registrada (docProps dice openpyxl).
+# - Cero observaciones: las diez hojas configuradas y BCO NACION estan
+#   presentes, y no hay importes ni fechas ilegibles.
+
+[flujo_caja_ingresos]
+
+[[flujo_caja_ingresos.pares]]
+id                   = "01"
+entrada_fideicomisas = { archivo = "01_entrada_fideicomisas.xlsx", sha256 = "03809122f2d0a996f3bad32b9742b5996a7112a3623a453f738a61726282ac25" }
+entrada_operativas   = { archivo = "01_entrada_operativas.xlsx",   sha256 = "7f45beb6dbdc864b182b4ad88c7ae55b28b5ae27ca576b2ad6b308f7df230464" }
+salida_consolidado   = { archivo = "01_salida_consolidado.xlsx",   sha256 = "150cd8d0502b529351bdd05f73f744811272efd9dd673cca6533ed0636fa5e33" }
+salida_banco_nacion  = { archivo = "01_salida_banco_nacion.xlsx",  sha256 = "0aebefdd192b8d6eac450f0f0e92331dff52391ce56edc1a0c3ad4f66b77ea9b" }
+
+  [flujo_caja_ingresos.pares.procedencia]
+  generado_por   = "flujoCaja_BancoNacion.py + flujoCaja_consolida_Ingresos.py"
+  version_script = "sha256:49aa711b5bc6bcf48d332aae61c85930fbb44b42dff88c20df38a7d2bd939c64"
+  generado_el    = 2025-08-11
+  generado_en    = "desconocido: salidas historicas de la maquina del autor (openpyxl segun docProps)"
+  fin_de_linea   = "no_aplica"
+
+# --- flujo_caja_pagos --------------------------------------------------------
+#
+# ESTADO: 1 par con TRES entradas y una salida. Las entradas son los libros
+# semanales reales "01.-Pagos Programados LIMA EXPRESA del 01 al 06.07.xlsm",
+# "02.-... del 07 al 13.07.xlsm" y "03.-... del 14 al 20.07.xlsm" (julio de
+# 2025, los tres de tipo LIMA EXPRESA: no hay muestra PEX). En el recurso
+# compartido se renombran 01_entrada_1.xlsm, 01_entrada_2.xlsm,
+# 01_entrada_3.xlsm y 01_salida_consolidado.xlsx. Los nombres ORIGINALES
+# importan: salen en la columna `Excel` y deciden el orden de concatenacion;
+# tests/paridad/test_flujo_caja_pagos.py los conserva.
+#
+# LEER ESTO ANTES DE CONFIAR EN ESTE PAR.
+#
+# - La salida NO es de la epoca de los libros: docProps dice openpyxl,
+#   creada el 2026-09-30 20:43 UTC (15:43 hora local), mientras que el script
+#   es del 2025-08-11. Es una corrida reciente del script sobre estos mismos
+#   tres libros. La evidencia de que es la salida del script es que
+#   re-ejecutarlo hoy (pandas 3.0.6, numpy 2.5.3) la reproduce celda por
+#   celda, y el modulo tambien.
+# - `generado_en` es desconocido: la version de pandas de esa corrida no
+#   quedo registrada.
+# - Ocho observaciones, todas `hoja_sin_filas`: hojas presentes sin ninguna
+#   fila con `Cuenta` (CAJA CHICA LE, REEMBOLSOS_SOL, PLANILLA, PLATAFORMA IBK
+#   y PLATAFORMA BBVA en la semana 1; CAJA CHICA LE en la 2; PLANILLA y
+#   PLATAFORMA BBVA en la 3), las mismas que el script anunciaba con "no
+#   contiene datos". Ninguna cambia la salida.
+
+[flujo_caja_pagos]
+
+[[flujo_caja_pagos.pares]]
+id                  = "01"
+entrada_1           = { archivo = "01_entrada_1.xlsm",          sha256 = "3c5863ed17c2d718a01bcfb9db97e6e98f9b1226d2f523b5092bd6c94f99fe95" }
+entrada_2           = { archivo = "01_entrada_2.xlsm",          sha256 = "b25753572c5900fb46ec7da69493457a3fa6e7c57b78620099e3391bdae83d4c" }
+entrada_3           = { archivo = "01_entrada_3.xlsm",          sha256 = "00fea2e34a5bf0695df9abe7209a6215eb8d894195170b05b7d9a01bdd94ecb4" }
+salida_consolidado  = { archivo = "01_salida_consolidado.xlsx", sha256 = "d579aa3160fb117588b745584ff42b0bf44e6a5b73296d04769123d8713ef2a2" }
+
+  [flujo_caja_pagos.pares.procedencia]
+  generado_por   = "flujoCaja_consolida_pagos.py"
+  version_script = "sha256:8014e0853ef7d45638c99a91ca7dc6aaf96f7f33868342844bb50cdec9681777"
+  generado_el    = 2026-09-30
+  generado_en    = "desconocido: corrida del script en la maquina del usuario (openpyxl segun docProps)"
+  fin_de_linea   = "no_aplica"
