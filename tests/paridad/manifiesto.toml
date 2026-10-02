@@ -320,3 +320,100 @@ salida_consolidado  = { archivo = "01_salida_consolidado.xlsx", sha256 = "d579aa
   generado_el    = 2026-09-30
   generado_en    = "desconocido: corrida del script en la maquina del usuario (openpyxl segun docProps)"
   fin_de_linea   = "no_aplica"
+
+# --- medios_pago_reportes ----------------------------------------------------
+#
+# ESTADO: 1 par con CUATRO entradas (los reportes crudos de mayo de 2025:
+# "mc_052025009428105 (13).csv", "movi_amex052025009428105 (13).csv",
+# "servicios052025009428105 (13).csv" y "MPFinancialReport (1).xlsx") y UNA
+# salida: un ZIP con las 99 particiones (80 CSV y 19 SafetyPay). El ZIP es
+# solo el envase del fixture (fecha fija en cada entrada); la prueba compara
+# archivo por archivo. tests/paridad/test_medios_pago_reportes.py conserva los
+# nombres originales.
+#
+# LEER ESTO ANTES DE CONFIAR EN ESTE PAR.
+#
+# - La salida esperada NO es historica: se REGENERO el 2026-10-01 corriendo
+#   Procesador_MediosPago_Reportes.py sobre estas cuatro entradas (solo se
+#   cambiaron las rutas y el input() final). La carpeta Salida historica tiene
+#   particiones de septiembre/octubre de 2025 de OTRAS corridas: ningun nombre
+#   coincide con los de estas entradas.
+# - Se regenero con pandas 2.2.3 porque es la version que reproduce el estilo
+#   de los titulos de las salidas historicas de BBVA (negrita, borde, centrado;
+#   pandas 3 ya no lo pone). Con pandas 3.0.6 el contenido es identico celda
+#   por celda y byte por byte; solo cambia ese estilo.
+# - fin_de_linea: los 80 CSV, 49094 CRLF y 0 LF sueltos (to_csv en Windows).
+# - Cero observaciones: las 12 filas de Mastercard sin fecha de abono son
+#   cargos pendientes (fecha en blanco), operacion normal.
+
+[medios_pago_reportes]
+
+[[medios_pago_reportes.pares]]
+id                = "01"
+entrada_mc        = { archivo = "01_entrada_mc.csv",          sha256 = "7e18e2d12db323d1485597c9cc9fb6437be84266b8ef2f04be2a1992bb3ea6c2" }
+entrada_amex      = { archivo = "01_entrada_amex.csv",        sha256 = "9674116dc83158bdaf17bcc0b6a4da206f50d94f1947b9bfbc17338b0460d2e7" }
+entrada_dinner    = { archivo = "01_entrada_dinner.csv",      sha256 = "e953c41cebc278fb8a4ce714c8ce284b3e4dec0bad0460e85762b66fe89d7e7f" }
+entrada_safetypay = { archivo = "01_entrada_safetypay.xlsx",  sha256 = "e966c073a0ad7a27ea918b4024799ba0522fe62f8528fb62fd21ee956b5cf9d3" }
+salida_zip        = { archivo = "01_salidas.zip",             sha256 = "d0023c66952ca48c3ba1398cb025f78bb42353588116648bc62457abd783d6c7" }
+
+  [medios_pago_reportes.pares.procedencia]
+  generado_por   = "Procesador_MediosPago_Reportes.py"
+  version_script = "sha256:cee0aa534e106ee546ba3b0c5a2d910d39239e7c92ca00691257b17a975d1ce3"
+  generado_el    = 2026-10-01
+  generado_en    = "Windows Server 2019 10.0.17763 / Python 3.12.0 / pandas 2.2.3 / numpy 2.4.2 / openpyxl 3.1.5 / holidays 0.105 (regenerada)"
+  fin_de_linea   = "CRLF"                          # OBSERVADO: 49094 CRLF, 0 LF sueltos
+
+# --- medios_pago_bbva_hits ---------------------------------------------------
+#
+# ESTADO: 2 pares, el mismo extracto real "bbva.csv_" (mayo de 2025, 1019
+# lineas 22).
+#
+# - Par 01: el extracto mas los tres reportes crudos de Izipay del par 01 de
+#   medios_pago_reportes (mismos bytes). Salida: un ZIP con
+#   Abonos_BBVA_CATEGORIZADO.xlsx y 118 HIST-*.xlsx, REGENERADO el 2026-10-01
+#   corriendo Medios_Pago_Reportes y despues Procesador_BBVA_Hits.py (pandas
+#   2.2.3) con la carpeta de cruce = la Salida de Reportes recien generada.
+# - Par 02: el extracto SOLO. Salida: un ZIP con las salidas HISTORICAS de
+#   "BBVA - Hits/Salida" (el CATEGORIZADO y 36 HIST de SP y VISA), NO
+#   regeneradas. Esa corrida cruzo contra una carpeta Salida de Reportes que
+#   solo tenia particiones de septiembre/octubre: ningun abono de mayo cruzo,
+#   que es exactamente correr sin reportes de Izipay. Re-ejecutar el script hoy
+#   con esa carpeta reproduce las 37 salidas celda por celda, con el estilo de
+#   los titulos, y el modulo tambien. generado_el es la fecha de modificacion
+#   de esos archivos.
+#
+# LEER ESTO ANTES DE CONFIAR EN ESTOS PARES.
+#
+# - El script cruzaba contra TODA la carpeta Salida de Reportes; el modulo
+#   solo contra lo que se sube. Los dos pares fijan conjuntos de cruce
+#   cerrados para que la comparacion sea justa.
+# - Cero observaciones en los dos pares.
+
+[medios_pago_bbva_hits]
+
+[[medios_pago_bbva_hits.pares]]
+id             = "01"
+entrada_bbva   = { archivo = "01_entrada_bbva.csv_",    sha256 = "aa6177785ec801f7a8440aafb3cc6c85423a210ea4844722b431e5a1bcc80565" }
+entrada_mc     = { archivo = "01_entrada_mc.csv",       sha256 = "7e18e2d12db323d1485597c9cc9fb6437be84266b8ef2f04be2a1992bb3ea6c2" }
+entrada_amex   = { archivo = "01_entrada_amex.csv",     sha256 = "9674116dc83158bdaf17bcc0b6a4da206f50d94f1947b9bfbc17338b0460d2e7" }
+entrada_dinner = { archivo = "01_entrada_dinner.csv",   sha256 = "e953c41cebc278fb8a4ce714c8ce284b3e4dec0bad0460e85762b66fe89d7e7f" }
+salida_zip     = { archivo = "01_salidas.zip",          sha256 = "f21c3f51d60302f0f6594e85d71241e29c8fdea2ab50ecc098bfc109425ffdf8" }
+
+  [medios_pago_bbva_hits.pares.procedencia]
+  generado_por   = "Procesador_MediosPago_Reportes.py + Procesador_BBVA_Hits.py"
+  version_script = "sha256:e6b6d1dcdd76cc5ccea29226edc3687130afc32560aaf74e93fdb746a352bb4a"
+  generado_el    = 2026-10-01
+  generado_en    = "Windows Server 2019 10.0.17763 / Python 3.12.0 / pandas 2.2.3 / numpy 2.4.2 / openpyxl 3.1.5 / holidays 0.105 (regenerada)"
+  fin_de_linea   = "no_aplica"
+
+[[medios_pago_bbva_hits.pares]]
+id             = "02"
+entrada_bbva   = { archivo = "02_entrada_bbva.csv_",    sha256 = "aa6177785ec801f7a8440aafb3cc6c85423a210ea4844722b431e5a1bcc80565" }
+salida_zip     = { archivo = "02_salidas.zip",          sha256 = "73eaf998584d323f9c577732decf1ccec5e39f331fd2fced114cfda487563a14" }
+
+  [medios_pago_bbva_hits.pares.procedencia]
+  generado_por   = "Procesador_BBVA_Hits.py"
+  version_script = "sha256:e6b6d1dcdd76cc5ccea29226edc3687130afc32560aaf74e93fdb746a352bb4a"
+  generado_el    = 2025-12-23                      # docProps: creado 2025-12-23T17:04:24Z
+  generado_en    = "desconocido: salidas historicas de la maquina del usuario (pandas 2.x segun el estilo de los titulos)"
+  fin_de_linea   = "no_aplica"

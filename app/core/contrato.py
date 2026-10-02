@@ -124,6 +124,29 @@ _TABLA_CONTRATOS: MappingProxyType[str, ContratoProcesador] = MappingProxyType(
             entradas_max=10,
             formatos_aceptados=("xlsm", "xlsx"),
         ),
+        # Los reportes crudos de medios de pago en una sola ventana del portal:
+        # CSV de Izipay (Mastercard, AMEX, Diners) y el Excel de SafetyPay, en
+        # cualquier combinación. Varios CSV del mismo tipo se acumulan, como en
+        # el script; dos SafetyPay los rechaza el módulo (`tipo_duplicado`).
+        # Diez es un techo holgado, no una regla del script. Los techos de
+        # tamaño quedan en el valor por defecto.
+        "medios-pago-reportes": replace(
+            CONTRATO_POR_DEFECTO,
+            entradas_min=1,
+            entradas_max=10,
+            formatos_aceptados=("csv", "xlsx"),
+        ),
+        # El extracto BBVA (`bbva.csv_`, el primer formato con guion bajo que
+        # acepta el servicio; `csv` también, por si se lo renombra), los CSV
+        # crudos de Izipay del período para el cruce y el maestro anterior
+        # opcional (`xlsx`). La composición del lote (un extracto, a lo sumo un
+        # maestro) la valida el módulo, no esta fila.
+        "medios-pago-bbva-hits": replace(
+            CONTRATO_POR_DEFECTO,
+            entradas_min=1,
+            entradas_max=10,
+            formatos_aceptados=("csv_", "csv", "xlsx"),
+        ),
     }
 )
 

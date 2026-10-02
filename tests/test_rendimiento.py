@@ -95,7 +95,9 @@ import sys
 
 import app.core.ejecucion  # noqa: F401 - el modulo del objetivo de spawn
 
-PROHIBIDOS = ("pandas", "numpy", "fastapi", "starlette", "pydantic_settings")
+# `holidays` cuesta ~0,4 s entre importarlo y armar los feriados de un año:
+# `medios_pago/izipay.py` lo importa dentro de `procesar` y sólo con AMEX.
+PROHIBIDOS = ("pandas", "numpy", "fastapi", "starlette", "pydantic_settings", "holidays")
 presentes = [m for m in PROHIBIDOS if m in sys.modules]
 assert not presentes, f"la cadena del hijo importa {presentes}"
 print("OK")

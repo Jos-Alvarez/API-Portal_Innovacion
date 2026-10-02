@@ -42,6 +42,8 @@ from app.procesadores.asientos_contables.modulo import AsientosContables
 from app.procesadores.contado_carga.modulo import ContadoCarga
 from app.procesadores.flujo_caja_ingresos.modulo import FlujoCajaIngresos
 from app.procesadores.flujo_caja_pagos.modulo import FlujoCajaPagos
+from app.procesadores.medios_pago.bbva_hits import MediosPagoBbvaHits
+from app.procesadores.medios_pago.reportes import MediosPagoReportes
 from app.procesadores.passthrough.modulo import Passthrough
 from app.procesadores.prepago_carga.modulo import PrepagoCarga
 from app.procesadores.registro_sencillo.modulo import RegistroSencillo
@@ -55,4 +57,6 @@ REGISTRY: dict[str, Procesador] = {
     "registro-sencillo": RegistroSencillo(),
     "flujo-caja-ingresos": FlujoCajaIngresos(),
     "flujo-caja-pagos": FlujoCajaPagos(),
+    "medios-pago-reportes": MediosPagoReportes(),
+    "medios-pago-bbva-hits": MediosPagoBbvaHits(),
 }
