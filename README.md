@@ -58,24 +58,60 @@ history permanently, replicated to every clone and every runner. The
 repository stores only `tests/paridad/manifiesto.toml` — filenames, expected
 `sha256`, and the **provenance** of each expected output.
 
-Point `FIXTURES_PARIDAD` at the internal share. One subdirectory per
-processor, named exactly like the manifest section:
+### Where the fixtures live
+
+**Outside the repository, next to it — never inside it.** The convention is a
+sibling folder named after the checkout:
 
 ```
-$FIXTURES_PARIDAD/contado_carga/01_entrada.xlsx  01_salida.xlsx  01_salida.txt
+T:\API-Portal                     ← this repository
+T:\API-Portal_fixtures_paridad    ← the fixtures (real data, not in Git)
 ```
 
-**`contado_carga` currently has 1 of the 3 pairs the PRD requires.** Pair
-`01` was registered on 2026-08-20 from a real extract, and the parity suite
-passes against it: the migrated module reproduces the legacy script's TXT
-**byte for byte** and its Excel by content. Pairs `02` and `03` are still
-missing, so the PRD's requirement is not met yet.
+A folder inside the checkout is one `git add .` away from publishing real
+financial data. On a new development machine, copy the fixtures folder next to
+the new checkout the same way. The production servers never need it: the
+service runs without fixtures, and only the parity suite reads them.
 
-Read the provenance comment on pair `01` in `manifiesto.toml` before trusting
-it: that expected output was **regenerated** from the current script, not
-recovered from the system that consumes the TXT. It proves the module matches
-the script as it stands today — not that it matches what the consumer has
-been receiving historically.
+Point `FIXTURES_PARIDAD` at that folder when running the suite:
+
+```
+$env:FIXTURES_PARIDAD = "T:\API-Portal_fixtures_paridad"   # PowerShell
+uv run pytest tests/paridad
+```
+
+Inside it there is one subdirectory per processor, named exactly like its
+manifest section, holding the files the manifest lists:
+
+```
+$FIXTURES_PARIDAD/prepago_carga/01_entrada.xlsx  01_salida.xlsx  01_salida.txt
+```
+
+Keep a backup copy elsewhere (a company share): the folder is the only place
+these pairs exist outside the people's own `C:\Automatizacion` folders.
+
+### Pairs per processor
+
+| Manifest section | Pairs | In `T:\API-Portal_fixtures_paridad` |
+|---|---|---|
+| `contado_carga` | 1 | **no** — stored separately when it was registered |
+| `asientos_contables` | 7 (one per card type) | yes |
+| `prepago_carga` | 1 | yes |
+| `registro_sencillo` | 1 | yes |
+| `flujo_caja_ingresos` | 1 | yes |
+| `flujo_caja_pagos` | 1 | yes |
+| `medios_pago_reportes` | 1 | yes |
+| `medios_pago_bbva_hits` | 2 | yes |
+
+The PRD asks for 3 real pairs per processor; most have 1. Every registered
+pair passes: the modules reproduce the legacy scripts exactly (TXT byte for
+byte, Excel cell by cell).
+
+Read each pair's provenance comment in `manifiesto.toml` before trusting it.
+Several expected outputs were **regenerated** by running the legacy script on
+the sample inputs, not recovered from the system that consumes them. They
+prove the module matches the script as it stands — not that it matches what
+the consumer has been receiving historically.
 
 A section declared empty and a section that is missing are **not** the same
 thing. Empty means "this processor exists, its pairs are not ready" — that is
